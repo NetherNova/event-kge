@@ -4,70 +4,27 @@ import os
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 from model import EventEmbedding, EmbeddingLayer, ConcatLayer, Softmax, EventsWithWordsModel, EventsWithWordsAndVariantModel, EventsWithWordsAndVariantComposedModel
-from experiments import SimpleEmbeddingExperiment, read_data, read_metadata, plot_with_labels
+from experiments import SimpleEmbeddingExperiment, plot_with_labels
+from etl import read_data, read_metadata, context_window_for_classification, context_window_last_event
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.cross_validation import cross_val_score
+from model import save_embedding
 
 
-def context_windows(sequence, window_size, max_gap="5 minutes"):
-    result = []
-    table = pd.DataFrame(sequence)
-    off = pd.Timedelta(max_gap)
-    message_index = 0
-    variant_index = 1
-    module_index = 2
-    time_index = 3
-    # keine luecken in der reihe > max_gap in mins
-    table[time_index] = pd.to_datetime(table[time_index], format="%d.%m.%Y %H:%M:%S")
-    table = table.set_index(pd.DatetimeIndex(table[time_index]))
-    table = table.sort_index()
-    indices_list = [range(i, i + window_size) for i in xrange(0, len(sequence)-window_size)]
-    for i, indices in enumerate(indices_list):
-        window = table.iloc[indices]
-        if window.iloc[-1][time_index] - window.iloc[0][time_index] > off:
-            continue
-        result.append(window[[0,1,2]].values.tolist()) # one sequence [[message, variant, module], [mesage, variant, module] ...]
-    return result
-
-def context_window_for_classification(sequence, window_size, classification_size, classification_events=[]):
-    # every sequence, classify what critical event is going to happen (True/False) binary classification
-    train = []
-    labels = []
-    sequence = context_windows(sequence, window_size)
-    for i, seq in enumerate(sequence):
-        if i >= classification_size:
-            return train, labels
-        tmp_list = []
-        for index in xrange(len(seq)-1):
-            tmp_list.append(seq[index][0]) # event
-        tmp_list.append(seq[0][1]) # append the first seen variant
-        train.append(tmp_list)
-        previous_sequence = sequence[i - 1]
-        labels.append(previous_sequence[-1][2]) # append module of the last event
-    return train, labels
-
-def context_window_last_event(window_size, sequence):
-    train = []
-    labels = []
-    sequence = context_windows(sequence, window_size)
-    for seq in sequence:
-        tmp_list = []
-        for index in xrange(len(seq)-1):
-            tmp_list.append(seq[index][0]) # event
-        tmp_list.append(seq[0][1]) # append the first seen variant
-        train.append(tmp_list) # window_size - 1 events
-        labels.append(seq[len(seq)-1]) # the n-th event , module, and, n-th variant (assuming 1st and n-th variant are the same)
-    return train, labels
-
-def splitmessage(message):
+def split_message(message):
     return message.split(' ')
+
 
 def increment_dict_values(dictionary, value):
     for k,v in dictionary.iteritems():
         dictionary[k] = v + value
 
-""" SKIPGRAM-Model """
+
 class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
-    # in this case, sequence size is window before and after...
+    """
+    SKIPGRAM-Model in this case, sequence size is window before and after
+    """
     def __init__(self, input_data, meta_data, sequence_size, sample_words_size):
         super(EventWordSkipgramExperiment, self).__init__(input_data, sequence_size)
         self._word_dictionary = dict()
@@ -89,7 +46,7 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
             for part in self._meta_data[variant]:
                 self._variant_parts_dictionary.setdefault(part, len(self._variant_parts_dictionary))
             self._module_dictionary.setdefault(module, len(self._module_dictionary))
-            for w in splitmessage(message):
+            for w in split_message(message):
                 self._word_dictionary.setdefault(w, len(self._word_dictionary))    
         self._event_dictionary["UNK_E"] = len(self._event_dictionary)
         self._word_dictionary["UNK_W"] =  len(self._word_dictionary)
@@ -122,7 +79,7 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
             train_tmp = []
             for j in range(len(train[0]) - 1): # for every event
                 train_tmp.append(train[i][j])
-                words = splitmessage(self._event_reverse_dictionary[train[i][j]])
+                words = split_message(self._event_reverse_dictionary[train[i][j]])
                 indices = np.random.choice(len(words), np.min([self._sample_words_size, len(words)]), replace=False)
                 sampled_words = [words[sampled_index] for sampled_index in indices]
                 train_tmp += [self._word_dictionary[w] - len(self._module_dictionary) for w in sampled_words]
@@ -196,13 +153,13 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
             event_emb = EmbeddingLayer("Event", len(self.get_vocabulary()), embedding_size)
             #word_emb = EmbeddingLayer("Word", len(self.get_word_vocabulary()), embedding_size)
             #model = EventsWithWordsModel(self._sequence_size - 1 , self._sample_words_size, len(self.get_word_vocabulary()) + len(self.get_event_vocabulary()), embedding_size, len(self.get_event_vocabulary()), 5)
-            model = EventsWithWordsAndVariantModel(self._sequence_size - 1, self._sample_words_size,
-                                                   len(self.get_word_vocabulary()) + len(self.get_event_vocabulary()) + len(self.get_variant_vocabulary()),
-                                                                                         embedding_size, len(self.get_event_vocabulary()), len(self.get_variant_vocabulary()), 8, 5)
+            #model = EventsWithWordsAndVariantModel(self._sequence_size - 1, self._sample_words_size,
+            #                                       len(self.get_word_vocabulary()) + len(self.get_event_vocabulary()) + len(self.get_variant_vocabulary()),
+            #                                                                             embedding_size, len(self.get_event_vocabulary()), len(self.get_variant_vocabulary()), 8, 5)
             
-            #model = EventsWithWordsAndVariantComposedModel(self._sequence_size - 1, self._sample_words_size,
-            #                                       len(self.get_word_vocabulary()) + len(self.get_event_vocabulary()) + len(self.get_variant_vocabulary()) + len(self.get_variant_parts_vocabulary()),
-            #                                                                             embedding_size, len(self.get_event_vocabulary()), len(self.get_variant_vocabulary()), 8, 5, 2)
+            model = EventsWithWordsAndVariantComposedModel(self._sequence_size - 1, self._sample_words_size,
+                                                   len(self.get_word_vocabulary()) + len(self.get_event_vocabulary()) + len(self.get_variant_vocabulary()) + len(self.get_variant_parts_vocabulary()),
+                                                                                         embedding_size, len(self.get_event_vocabulary()), len(self.get_variant_vocabulary()), 8, 5, 2)
             """
             #[batch_size, 4, n_dim]
             event1_withwords = tf.reshape(tf.nn.embedding_lookup(event_emb.get_embeddings(),tf.slice(train_dataset, [0, 0], [batch_size, 4])), [batch_size, 4*embedding_size])
@@ -247,6 +204,7 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
         with tf.Session(graph=graph) as session:
           tf.global_variables_initializer().run()
           print('Initialized')
+          classification_dataset_feed, classification_labels = self.classification(classification_data, classification_size)
           average_loss = 0
           for step in range(num_steps):
             batch_data, batch_labels = self.generate_batch(batch_size)
@@ -262,8 +220,12 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
               # The average loss is an estimate of the loss over the last 2000 batches.
               print('Average loss at step %d: %f' % (step, average_loss))
               average_loss = 0
+            """
+            if step % 1000 == 0:
+               feed_dict[classification_dataset] = np.array(classification_dataset_feed)
+               classification_dataset_np = session.run([c_final_classification_dataset], feed_dict=feed_dict)
+               print np.average(cross_validate(classification_dataset_np[0], classification_labels))
             #second function
-              """
             _, l = session.run(
                 [optimizer2, loss2], feed_dict=feed_dict)
             average_loss += l
@@ -275,10 +237,7 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
               average_loss = 0
             """
           final_embeddings = event_emb.get_embeddings().eval()
-          classification_dataset_feed, classification_labels = self.classification(classification_data, classification_size)
-          feed_dict[classification_dataset] = np.array(classification_dataset_feed)
-          c_final_classification_dataset = session.run([c_final_classification_dataset], feed_dict=feed_dict)
-        return final_embeddings, self.get_vocabulary(), c_final_classification_dataset, classification_labels
+        return final_embeddings, self.get_event_vocabulary(), c_final_classification_dataset, classification_labels
 
     def classification(self, input_data, classification_size):
         # classify root-cause analysis, given sequence, what is the most likely cause (common cause scenario)
@@ -306,46 +265,55 @@ class EventWordSkipgramExperiment(SimpleEmbeddingExperiment):
             for j in range(len(train[0]) - 1): # for every event
                 train_tmp.append(train[i][j])
                 # TODO: test for event known or unknown
-                words = splitmessage(self._event_reverse_dictionary[train[i][j]])
-                indices = np.random.choice(len(words), np.min([self._sample_words_size, len(words)]), replace=False)
-                sampled_words = [words[sampled_index] for sampled_index in indices]
-                train_tmp += [self._word_dictionary[w] - len(self._module_dictionary) for w in sampled_words]
-                for z in range(self._sample_words_size-len(sampled_words)):
-                    train_tmp.append(self._word_dictionary["UNK_W"])
+                words = split_message(self._event_reverse_dictionary[train[i][j]])
+                if self._event_reverse_dictionary[train[i][j]] == "UNK_E":
+                    for z in range(self._sample_words_size):
+                        train_tmp.append(self._word_dictionary["UNK_W"])
+                else:
+                    indices = np.random.choice(len(words), np.min([self._sample_words_size, len(words)]), replace=False)
+                    sampled_words = [words[sampled_index] for sampled_index in indices]
+                    train_tmp += [self._word_dictionary[w] - len(self._module_dictionary) for w in sampled_words]
+                    for z in range(self._sample_words_size-len(sampled_words)):
+                        train_tmp.append(self._word_dictionary["UNK_W"])
             train_tmp.append(train[i][len(train[0]) - 1]) # last thing to append is variant
             num_parts = 2
             parts = self._meta_data[self._variant_reverse_dictionary[train[i][len(train[0]) - 1]]]
             part_indices = np.random.choice(len(parts), np.min([num_parts, len(parts)]), replace=False)
             for p in part_indices:
-                if parts[p] in self._variant_parts_dictionary[parts[p]]:
-                    part = parts[p]
+                if parts[p] in self._variant_parts_dictionary:
+                    part = self._variant_parts_dictionary[parts[p]]
                 else:
-                    part = "UNK_VP"
+                    part = self._variant_parts_dictionary["UNK_VP"]
                 train_tmp.append(part) #(+ composed parts num_parts )
             classification_dataset_l.append(train_tmp)
         return classification_dataset_l, labels
 
+
 def cross_validate(data, labels):
-    classifier = SVC()
-    # TODO
+    clf = LogisticRegression()
+    scores = cross_val_score(clf, data, labels, cv=5, scoring="f1_macro")
+    return scores
+
 
 if __name__ == '__main__':
     data = read_data("./test_data/")
     print(len(data))
-    max_events=2000
-    data = data[:max_events]
+    max_events=len(data)
+    data = np.array(data[:max_events])
+    
     meta_data = read_metadata("./test_data/variant_info_parsed.txt")
-    classification_data = read_data("./classification_data/")
-    classification_size = 1000
-    sequence_size = 3
+    classification_data = np.array(read_data("./test_data/"))
+    classification_size = 500
+    sequence_size = 5
     sample_words_size = 3
     variant_index = 8
     batch_size = 128
-    embedding_size = 64
-    num_steps = 200
-    experiment = EventWordSkipgramExperiment(data, meta_data, sequence_size, sample_words_size) #SimpleSkipgramExperiment(data, sequence_size) #RecurrentEmbeddingExperiment(data, sequence_size)#ContextualSimpleEventEmbeddingExperiment(data, sequence_size, meta_data) #SimpleEmbeddingExperiment(data, sequence_size)
+    embedding_size = 128
+    num_steps = 10000
+    experiment = EventWordSkipgramExperiment(data, meta_data, sequence_size, sample_words_size) #SimpleSkipgramExperiment(data, sequence_size)
     experiment.prepare_data()
     final_embeddings, dictionary, classification_dataset, classification_labels = experiment.run("model", batch_size, num_steps, embedding_size, classification_size)
+    save_embedding("embeddings.pickle", dictionary, final_embeddings)
     reverse_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
     np.savetxt("final_embeddings.txt", final_embeddings, delimiter=",")
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)

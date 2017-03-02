@@ -9,63 +9,14 @@ from model import EventEmbedding, ContextEventEmbedding, RecurrentEventEmbedding
 # # # DBLP # # #
 def read_data(path):
   # Sequence not author overlapping?
-  
   pass
+
 
 # TODO:
 # data preparation + part model
 # events as bag of terms vector
 
-def read_data(path):
-  """Extract the first file enclosed in a zip file as a list of words"""
-  data = []
-  # list all files in path and extract <message, variant>
-  # TODO: make sure sorted by date - pandas?
-  for root, dirs, files in os.walk(path):
-      for file in files:
-         if file.endswith(".csv"):
-             print file
-             f=open(path + file, 'r')
-             first_line = True
-             for l in f:
-                if first_line:
-                    first_line = False
-                    continue
-                line = l.split(";")
-                if len(line) != 4:
-                    continue
-                message = line[1].strip()
-                module = line[2].strip()
-                variant = line[3].replace('"', '').strip()
-                timestamp = line[0].replace('"', '').strip()
-                tmp_entry = [message, module, variant, timestamp]
-                data.append(tmp_entry)
-             f.close()
-  return data
 
-def read_metadata(path):
-    meta_dict = dict()
-    f = open(path, "r")
-    for line in f:
-        line = line.strip()
-        line_elements = line.split(",")
-        variant =  line_elements[0].replace('-', '')
-        meta_dict[variant] = ['Part-'+str(part) for part in line_elements[1:]]
-    meta_dict["UNK_V"] = ['Part-0', 'Part-1']
-    f.close()
-    return meta_dict
-
-def context_window(window_size, sequence):
-    skip = window_size // 2     # only odd window_size makes sense
-    train = []
-    labels = []
-    for i in range(skip, len(sequence)-skip):
-        current_target = i
-        context = sequence[current_target - skip : (current_target)]
-        context = context + sequence[current_target+1 : current_target+1+skip]
-        train.append(context)
-        labels.append(sequence[current_target])
-    return train, labels
 
 def plot_with_labels(low_dim_embs, labels, filename='tsne.png'):
   assert low_dim_embs.shape[0] >= len(labels), "More labels than embeddings"

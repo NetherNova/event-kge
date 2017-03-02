@@ -1,6 +1,23 @@
 import tensorflow as tf
 import numpy as np
 import math
+import pickle
+
+class SuppliedEmbedding(object):
+    def __init__(self, W, dictionary):
+        self._W = W
+        self._dictionary = dictionary
+
+    def get_embeddings(self):
+        return self._W
+
+    def get_dictionary(self):
+        return self._dictionary
+
+def save_embedding(file_name, dictionary, embeddings):
+    suppl_emb = SuppliedEmbedding(embeddings, dictionary)
+    pickle.dump(suppl_emb, open(file_name, "wb"))
+    
 
 class DotProduct(object):
     def __init__(self, left, right):
@@ -44,6 +61,25 @@ class Softmax(object):
         #return tf.reduce_mean(
         #    tf.nn.sampled_softmax_loss(self._W, self._bias, self._context, self._labels, 5, self._vocabulary_size)) # provide the list of negative sample values
         return tf.reduce_mean(tf.nn.nce_loss(self._nce_weights, self._nce_biases, self._context, self._labels, self._negative_sample_size, self._vocabulary_size))
+
+
+class RankingModel(object):
+    def __init__(self, num_entities, num_hidden, num_dim):
+        self.W = tf.Variable(tf.truncated_normal(shape=(num_entities, num_hidden)))
+        self.A = tf.Variable(tf.tuncated_normal(shape=(num_hidden, num_dim)))
+
+    def loss(self, lookup_entities, labels):
+        input_layer = tf.concat(tf.nn.embedding_lookup(self.W, lookup_entities), 0) # matrix with stacked input words
+        hidden_layer = tf.nn.sigmoid(tf.reduce_sum(tf.matmul(self.W, input_layer)))
+        scores = tf.nn.sigmoid(self.A * hidden_layer)
+
+        return scores
+
+    def rank_error(self, scores, labels):
+        tf.gather(scores, tf.nn.top_k(scores, k = scores.get_shape().values[0]).indices) # sorted scores
+        # loop through all combinations
+
+
 
 class SkipgramModel(object):
     def __init__(self, label, num_entities, num_hidden, num_hidden_softmax):
@@ -136,6 +172,48 @@ class EventsWithWordsAndVariantComposedModel(object):
         loss1 = Softmax(concat_variant_parts, train_labels_events, self._num_label_events, self._num_neg_samples, (self._len_sequence) * (self._num_words_per_sequence+1) * self._embedding_size + self._embedding_size).loss()
         loss2 = Softmax(concat_last_event, train_labels_variants, self._num_label_variants, self._num_neg_samples - 3, (self._len_sequence) * (self._num_words_per_sequence+1) * self._embedding_size + self._embedding_size).loss()
         return loss1 + loss2
+
+    def get_model(self, train_dataset, dataset_size):
+        concat = IncrementalConcatLayer(self.W.get_embeddings(), train_dataset, dataset_size, self._embedding_size, self._len_sequence, self._num_words_per_sequence)
+        var_avg = AverageLayer(tf.nn.embedding_lookup(self.W.get_embeddings(), tf.slice(train_dataset, [0, self._variant_index], [dataset_size, self._num_variant_parts])), axis=1)
+        concat_variant_parts = ConcatLayer(concat, var_avg)
+        return concat_variant_parts
+
+    def get_embeddings(self, dataset):
+        return self.W.get_embeddings()
+
+# relation between modules embedded score(e1) < score(e2)
+# beginn und ende einer Sequenz (OEE Down / Stillstand)
+# dependency strength (Modul -> same, directBefore, directAfter)
+class EventsWithModules(object):
+    def __init__(self, len_sequence):
+        pass
+
+
+def beforeAfterRanking(scores, indices_sorted_by_score, indices_actual_sorted):
+    """for i in inidces_actual_sorted
+           inner loop:
+                var 0 - i scores[i] - scores[var] < 0 --> error_vector.append(1)
+           inner loop:
+                var i - end: scores[i] - scores[var] > 0 --> error_vector.append(1)
+    """
+    def body(i, x):
+        a = tf.reshape(tf.nn.embedding_lookup(embeddings, tf.slice(train_dataset, [0, (num_words_per_sequence + 1) * i],
+                                                                   [batch_size, (num_words_per_sequence + 1)])),
+                       [batch_size, (num_words_per_sequence + 1) * embedding_size])
+        # a = tf.reshape(tf.slice(train_emb, [0, i, 0], [batch_size, 1, embedding_size]), [batch_size, embedding_size])
+        return i + 1, tf.concat(1, [x, a])
+
+    def condition(i, x):
+        return i < len_sequence
+
+    i = tf.constant(1)
+    init = tf.reshape(
+        tf.nn.embedding_lookup(embeddings, tf.slice(train_dataset, [0, 0], [batch_size, (num_words_per_sequence + 1)])),
+        [batch_size, (num_words_per_sequence + 1) * embedding_size])
+    _, result = tf.while_loop(condition, body, [i, init],
+                              shape_invariants=[i.get_shape(), tf.TensorShape([None, None])])
+    return tf.reshape(result, [batch_size, len_sequence * (num_words_per_sequence + 1) * embedding_size])
 
 
 def IncrementalConcatLayer(embeddings, train_dataset, batch_size, embedding_size, len_sequence, num_words_per_sequence):
