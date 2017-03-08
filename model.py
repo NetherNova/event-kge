@@ -247,18 +247,17 @@ class EmbeddingLayer(object):
 
 
 class TranslationModelShared(object):
-    # sum of sentence-level n-grams + attributes
+    """ TransE Model with """
     def __init__(self, num_entities, num_relations, num_dim, shared_entity_layer):
         # left entities come from shared lower layer (e.g. skipgram)
         self._shared_entity_layer = shared_entity_layer
-        self.W = tf.Variable(tf.truncated_normal(shape=(num_entities, num_dim), name="WEnt"))
+        #self.W = tf.Variable(tf.truncated_normal(shape=(num_entities, num_dim), name="WEnt"))
         self.R = tf.Variable(tf.truncated_normal(shape=(num_relations, num_dim), name="R"))
 
     def loss(self, left_entity, relation, pos_right_entity, neg_right_entity):
         embed_left = tf.nn.embedding_lookup(self._shared_entity_layer, left_entity)
         embed_relation = tf.nn.embedding_lookup(self.R, relation)
-        embed_pos_right = tf.nn.embedding_lookup(self.W, pos_right_entity)
-        embed_neg_right = tf.nn.embedding_lookup(self.W, neg_right_entity)
+
         
         left = embed_left + embed_relation
         pos_distance = tf.sqrt(tf.square(left) + tf.square(embed_pos_right))

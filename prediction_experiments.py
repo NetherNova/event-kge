@@ -307,13 +307,16 @@ if __name__ == '__main__':
     sequence_size = 5
     sample_words_size = 3
     variant_index = 8
-    batch_size = 128
+    batch_size = 512
     embedding_size = 128
-    num_steps = 10000
-    experiment = EventWordSkipgramExperiment(data, meta_data, sequence_size, sample_words_size) #SimpleSkipgramExperiment(data, sequence_size)
+    num_steps = 200000
+    # SimpleSkipgramExperiment(data, sequence_size)
+    experiment = EventWordSkipgramExperiment(data, meta_data, sequence_size, sample_words_size)
     experiment.prepare_data()
-    final_embeddings, dictionary, classification_dataset, classification_labels = experiment.run("model", batch_size, num_steps, embedding_size, classification_size)
-    save_embedding("embeddings.pickle", dictionary, final_embeddings)
+    final_embeddings, dictionary, classification_dataset, classification_labels = \
+        experiment.run("model", batch_size, num_steps, embedding_size, classification_size)
+    save_embedding("./Embeddings/embeddings_" + str(embedding_size) + "_" + str(batch_size) + "_all_" \
+        + str(num_steps) + ".pickle", dictionary, final_embeddings)
     reverse_dictionary = dict(zip(dictionary.values(), dictionary.keys()))
     np.savetxt("final_embeddings.txt", final_embeddings, delimiter=",")
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
