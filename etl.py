@@ -12,6 +12,7 @@ time_column = 'Timestamp'
 module_column = 'Module'
 variant_column = 'MLFB'
 message_column = 'Meldetext'
+fe_column = 'FE'
 # indices for numpy array
 message_index = 0
 module_index = 1
@@ -98,11 +99,35 @@ def read_ontology(path):
             g.remove((s, p, o))
     return g
 
-def update_ontology(path, msg_dict, fe_dict, var_dict):
+def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
     #update entities in ontology to ids of dictionaries
     #Variants (parts), modules (fes), events
     #Give new Ids to entities never seen before
-    pass
+    entity_uri_to_data_id = dict()
+    for msg, id in msg_dict.iteritems():
+        fe_or_module_id = None
+        fe_or_module = np.unique(data[data[message_column] == msg][fe_column])[0]
+        fe_or_module_id = fe_dict[fe_or_module]
+        if not fe_or_module:
+            fe_or_module = np.unique(data[data[message_column] == msg][module_column])[0]
+            fe_or_module_id = mod_dict[fe_or_module]
+            fe_or_module = fe_or_module.replace('odule', '').replace(' ', '')
+        ont.add((URIRef(amberg_ns['Event-'+str(id)]), RDF.type, base_ns['Event']))
+        ont.add((URIRef(amberg_ns['Event-'+str(id)]), occursOn, amberg_ns[fe_or_module]))
+        entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
+        entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
+    return ont, entity_uri_to_data_id
+
+    # same procedure for modules, fes, ...
+    """
+    #max_id to continue for new values
+    all_ids = msg_dict.values() + mod_dict.values() + fe_dict.values() + var_dict.values()
+    new_id_start = np.max(all_ids) + 1
+    for (s,p,o) in ont.triples():
+        if s not in entity_uri_to_data_id:
+            #add
+            pass
+    """
 
 
 def context_window(window_size, sequence):
@@ -181,8 +206,11 @@ def get_unique_entities(data):
     unique_variants_dict = dict(zip(unique_variants, range(len(unique_msgs), len(unique_msgs) + len(unique_variants))))
     unique_modules = np.unique(data[module_column])
     unique_modules_dict = dict(zip(unique_modules, range(len(unique_msgs) + len(unique_variants),
-                                                         len(unique_msgs) + len(unique_variants) + len(unique_modules))))
-    return unique_msgs_dict, unique_variants_dict, unique_modules_dict
+                                                len(unique_msgs) + len(unique_variants) + len(unique_modules))))
+    unique_fes = np.unique(data[fe_column])
+    unique_fes_dict = dict(zip(unique_fes, range(len(unique_msgs) + len(unique_variants) + len(unique_modules),
+                                    len(unique_msgs) + len(unique_variants) + len(unique_modules) + len(unique_fes))))
+    return unique_msgs_dict, unique_variants_dict, unique_modules_dict, unique_fes_dict
 
 
 path = "/home/nether-nova/Documents/Amberg Events/test_data/"
@@ -191,12 +219,15 @@ window_size = 3
 df = read_data(path, max_events)
 fe_df = pd.read_csv(path + "messages_to_fe.csv")
 merged = pd.merge(df, fe_df, on="Meldetext")
-merged[module_column] = merged["FE"]    # replace module column with FE-Module
+#merged[module_column] = merged["FE"]    # replace module column with FE-Module
 merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
 merged = merged.sort_index(ascending=True)
-unique_msgs, unique_vars, unique_mods = get_unique_entities(merged)
+unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
 #includes relations
-ontology, uri_to_entity, relation_to_entity  = read_ontology(path + "amberg_individuals.xml")
+ontology = read_ontology(path + "./amberg_inferred.xml")
+ont, uri_to_id = update_ontology(ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
+for k in uri_to_id:
+    print k, [t for t in ont.triples((URIRef(k), None, None))]
 
 
 def binary_sequences(sequences, index, classification_event=None):
@@ -244,6 +275,7 @@ def prepare_sequences(data_frame, file_name, index, classification_event='Droppi
     reverse_lookup = dict(zip(lookup_dict.values(), lookup_dict.keys()))
     pickle.dump(reverse_lookup, open(path + file_name + "_dictionary.pickle", "wb"))
 
+
 def prepare_fe_log_file(file_name):
     sequences = time_window(merged, 3, include_time=True)
     with open(file_name, "wb") as csvfile:
@@ -254,6 +286,6 @@ def prepare_fe_log_file(file_name):
                 writer.writerow([i, fe[module_index], fe[time_index], fe[time_index]])
 
 
-prepare_sequences(df, "train_sequences", message_index, classification_event=None)
+#prepare_sequences(df, "train_sequences", message_index, classification_event=None)
 #prepare_fe_log_file("./test_data/fe_log.txt")
 

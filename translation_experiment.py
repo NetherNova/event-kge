@@ -5,6 +5,9 @@ import time
 import datetime
 import pickle
 from rdflib import ConjunctiveGraph
+from etl import update_ontology
+from sklearn.manifold import TSNE
+import csv
 
 
 def dot_similarity(x, y):
@@ -30,6 +33,44 @@ def ident_entity(x, y):
 def max_margin(pos, neg, marge=1.0):
     cost = 1. - pos + neg
     return tf.reduce_mean(tf.maximum(0., cost)) # sum oder mean?
+
+
+class SkipgramBatchGenerator(object):
+    def __init__(self, sequences, num_skips, batch_size):
+        """
+
+        :param sequences: list of lists of event entities
+        :param num_skips:  window left and right of target
+        :param batch_size:
+        """
+        self.sequences = sequences
+        self.sequence_index = 0
+        self.num_skips = num_skips
+        self.event_index = num_skips
+        self.batch_size = batch_size
+        self.prepare_target_skips()
+
+    def prepare_target_skips(self):
+        self.data_index = 0
+        self.data = []
+        for seq in self.sequences:
+            for target_ind in range(self.num_skips, len(seq) - self.num_skips):
+                for i in range(-self.num_skips, self.num_skips+1):
+                    if i == 0:
+                        #avoid the target_ind itself
+                        continue
+                    self.data.append( (seq[target_ind], seq[target_ind + i]) )
+
+    def next(self):
+        batch_x = []
+        batch_y = []
+        for b in range(self.batch_size):
+            self.data_index = self.data_index % len(self.data)
+            batch_x.append(self.data[self.data_index][0])
+            batch_y.append(self.data[self.data_index][1])
+            self.data_index += 1
+        return batch_x, batch_y
+
 
 
 class TripleBatchGenerator(object):
@@ -101,10 +142,12 @@ class TranslationEmbeddings(object):
     """
     Implements triplet scoring from negative sampling
     """
-    def __init__(self, num_entities, num_relations, embedding_size, batch_size, leftop, rightop, fnsim):
+    def __init__(self, num_entities, num_relations, embedding_size, batch_size, vocab_size, leftop, rightop, fnsim):
         self.num_entities = num_entities
         self.num_relations = num_relations
         self.embedding_size = embedding_size
+        self.vocab_size = vocab_size
+        self.num_sampled = 5
         self.batch_size = batch_size
         self.leftop = leftop
         self.rightop = rightop
@@ -118,7 +161,7 @@ class TranslationEmbeddings(object):
     def normalize(self, W):
         return W / tf.expand_dims(tf.sqrt(tf.reduce_sum(W ** 2, axis=1)), 1)
 
-    def run(self, tg):
+    def run(self, tg, sg, reverse_dictionary, data):
         print('Running Model')
         graph = tf.Graph()
         with graph.as_default():
@@ -151,23 +194,23 @@ class TranslationEmbeddings(object):
             # Skipgram Model
             train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
             train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
-            valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
+            #valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
 
-            embeddings = tf.Variable(
-                tf.random_uniform([vocabulary_size, embedding_size], -1.0, 1.0))
-            embed = tf.nn.embedding_lookup(embeddings, train_inputs)
+            #embeddings = tf.Variable(
+            #    tf.random_uniform([self.vocab_size, embedding_size], -1.0, 1.0))
+            embed = tf.nn.embedding_lookup(self.E, train_inputs)
 
             nce_weights = tf.Variable(
-                tf.truncated_normal([vocabulary_size, embedding_size],
-                                    stddev=1.0 / tf.sqrt(embedding_size)))
-            nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
+                tf.truncated_normal([self.vocab_size, embedding_size],
+                                    stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+            nce_biases = tf.Variable(tf.zeros([self.vocab_size]))
             skipgram_loss = loss = tf.reduce_mean(
                 tf.nn.nce_loss(weights=nce_weights,
                                biases=nce_biases,
                                labels=train_labels,
                                inputs=embed,
-                               num_sampled=num_sampled,
-                               num_classes=vocabulary_size))
+                               num_sampled=self.num_sampled,
+                               num_classes=self.vocab_size))
 
             loss = kg_loss + skipgram_loss
             optimizer = tf.train.AdagradOptimizer(1.0).minimize(loss)
@@ -176,10 +219,13 @@ class TranslationEmbeddings(object):
             tf.global_variables_initializer().run()
             print('Initialized')
             average_loss = 0
-            for b in range(100):
+            for b in range(200):
                 batch_pos, batch_neg = tg.next()
+                batch_x, batch_y = sg.next()
+                batch_y = np.array(batch_y).reshape((batch_size, 1))
                 feed_dict = {inpl: batch_pos[1, :], inpr: batch_pos[0, :], inpo: batch_pos[2, :],
-                             inpln: batch_neg[1, :] , inprn: batch_neg[0, :], inpon: batch_neg[2, :]
+                             inpln: batch_neg[1, :] , inprn: batch_neg[0, :], inpon: batch_neg[2, :],
+                             train_inputs:  batch_x, train_labels: batch_y
                 }
                 _, l = session.run(
                     [optimizer, loss], feed_dict=feed_dict)
@@ -191,41 +237,78 @@ class TranslationEmbeddings(object):
                     # The average loss is an estimate of the loss over the last 2000 batches.
                     print('Average loss at step %d: %f' % (b, average_loss))
                     average_loss = 0
-            return session.run(self.E)
+                    embs = session.run(self.E)
+                    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
+                    low_dim_embs = tsne.fit_transform(embs)
+                    with open("low_dim_embeddings.csv", "wb") as csvfile:
+                        writer = csv.writer(csvfile)
+                        for i in range(low_dim_embs.shape[0]):
+                            if i not in reverse_dictionary:
+                                continue
+                            module = data[data["Meldetext"] == reverse_dictionary[i]]["Module"]
+                            module = np.unique(module)[0]
+                            writer.writerow([str(b), module, reverse_dictionary[i], low_dim_embs[i][0], low_dim_embs[i][1]])
+            return session.run(self.E), session.run(self.R)
 
     def ranking(self):
         #TODO: get top ranks for lhs, re -> rhs
         pass
 
 
-embedding_size = 1024
+#ontology (uri, r_uri, uri) ... uri -> id, r_uri -> [0...r]
+#sequences (id, id, id) ... reverse[id] -> entitiy
+embedding_size = 64
 batch_size = 32
 fnsim = dot_similarity
 leftop = trans
 rightop = ident_entity
 
 g = ConjunctiveGraph()
-g.load("amberg_individuals.xml")
-ent_dict = {}
+g.load("./test_data/amberg_inferred.xml")
+
+from etl import update_ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged
+
+g, uri_to_id = update_ontology(g, unique_msgs,unique_mods, unique_fes, unique_vars, merged)
+ent_dict = uri_to_id
 rel_dict = {}
 for t in g.triples((None, None, None)):
-    ent_dict.setdefault(t[0], len(ent_dict))
-    ent_dict.setdefault(t[2], len(ent_dict))
+    if t[0] not in ent_dict:
+        ent_dict.setdefault(t[0], len(ent_dict))
+    if t[1] not in ent_dict:
+        ent_dict.setdefault(t[2], len(ent_dict))
     rel_dict.setdefault(t[1], len(rel_dict))
 
-def prepare_data(ontology, unique_msgs, unique_fes, unique_vars, messages_to_fe, fe_to_fe_uri):
+
+def prepare_data(ontology, unique_msgs, unique_fes, unique_vars, messages_to_fe):
     #unique_msgs [0 - num_msgs]
     #ontology_entities 1) align 2) for additional entities start at num_msgs + 1
     #TODO: evtl. ontology anpassen, dass sich mehrere Sachen aendern von Var1 auf Var2
     #TODO: als test, neue events vorhersagen aus welchem FE sie kommen
-    p
-
+    ent_dict = {}
+    rel_dict = {}
+    for t in g.triples((None, None, None)):
+        ent_dict.setdefault(t[0], len(ent_dict))
+        ent_dict.setdefault(t[2], len(ent_dict))
+        rel_dict.setdefault(t[1], len(rel_dict))
 
 
 num_entities = len(ent_dict)
 num_relations = len(rel_dict)
 tg = TripleBatchGenerator(g, ent_dict, rel_dict, 1, batch_size)
-model = TranslationEmbeddings(num_entities, num_relations, embedding_size, batch_size, leftop, rightop, fnsim)
-embs=model.run(tg)
+
+sequences = [seq.split(' ') for seq in pickle.load(open("./test_data/train_sequences.pickle", "rb"))]
+sg = SkipgramBatchGenerator(sequences, 2, batch_size)
+
+reverse_dictionary = dict(zip(unique_msgs.values(), unique_msgs.keys()))
+
+model = TranslationEmbeddings(num_entities, num_relations, embedding_size, batch_size, len(unique_msgs), leftop, rightop, fnsim)
+embs, r_embs = model.run(tg, sg, reverse_dictionary, merged)
 print embs.shape
 print np.linalg.norm(embs[0,:])
+
+r = r_embs[rel_dict['http://www.siemens.com/ontology/demonstrator#occursOn']]
+
+
+#TODO: as labels emit modules for events too --> show in plots clusters of modules
+#TODO: prediction tests machen auf modul struktur
+#TODO: Similarity search -- distanz mass definieren
