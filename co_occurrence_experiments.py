@@ -1,6 +1,5 @@
 from model import save_embedding
 import numpy as np
-from experiments import read_data
 from etl import read_data, context_windows, time_window
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -88,6 +87,28 @@ def co_occurrence_from_to_matrix(sequence, entity, num_unique_entities):
     return X, index_dict, message_index_module_dict
 
 
+def co_occurrence_from_to_matrix_skips(sequence, entity, num_unique_entities, num_skips):
+    from_to_matrix = np.zeros((num_unique_entities, num_unique_entities))
+    index_dict = dict()
+    message_index_module_dict = dict()
+    # seq = [[message, module, variant], [message, module, variant], ...]
+    for seq in sequence:
+        entity_slice = np.array(seq)[:, entity]
+        for i in xrange(len(entity_slice) - num_skips):
+            for j in xrange(i + 1, i + num_skips):
+                if entity_slice[i] not in index_dict:
+                    index_dict.setdefault(entity_slice[i], len(index_dict))
+                if entity_slice[j] not in index_dict:
+                    index_dict.setdefault(entity_slice[j], len(index_dict))
+                message_index_module_dict[index_dict[entity_slice[i]]] = seq[i][1].replace('"', '')
+                i_index = index_dict[entity_slice[i]]
+                j_index = index_dict[entity_slice[j]]
+                from_to_matrix[i_index][j_index] += 1
+    X = np.array(from_to_matrix)
+    #X = X * (1.0/X.diagonal())
+    return X, index_dict, message_index_module_dict
+
+
 def plot_correlation_matrix(input_matrix, labels, file_name):
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -125,7 +146,7 @@ def join_messages_to_fe(file_name, df):
 if __name__ == '__main__':
     data = read_data("./test_data/")
     print(len(data))
-    max_events=500 #len(data)
+    max_events=5000 #len(data)
     data = data[:max_events]
 
     entity = 0
@@ -138,6 +159,16 @@ if __name__ == '__main__':
         matrix, index_dict, message_index_module_dict = co_occurrence_from_to_matrix(
             time_window(data, 5), entity, len(np.unique(np.array(data)[:, entity]))
            )
+        norm = np.sum(matrix, axis=1)
+        norm_matrix = matrix / norm[:, np.newaxis]
+        norm_matrix = matrix / norm
+        for k, v in index_dict.iteritems():
+            print("For Module", k)
+            top_k_inds = (-norm_matrix[v, :]).argsort()[:5 + 1]
+            print("Top k: ")
+            for i in top_k_inds:
+                module = [m for m in index_dict if index_dict[m] == i][0]
+                print(module + ":" + str(norm_matrix[v, i]))
     elif mat_type == corr:
         file_name = "corr_embeddings"
         matrix, df, index_dict, message_index_module_dict = correlation_matrix(
