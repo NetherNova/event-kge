@@ -287,5 +287,7 @@ def prepare_fe_log_file(file_name):
 
 
 #prepare_sequences(df, "train_sequences", message_index, classification_event=None)
+
+#prepare_sequences(df, "train_sequences", message_index, classification_event=None)
 #prepare_fe_log_file("./test_data/fe_log.txt")
 
