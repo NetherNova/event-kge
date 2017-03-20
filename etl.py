@@ -13,12 +13,14 @@ module_column = 'Module'
 variant_column = 'MLFB'
 message_column = 'Meldetext'
 fe_column = 'FE'
+
 # indices for numpy array
 message_index = 0
 module_index = 1
 variant_index = 2
 time_index = 3
 
+# rdf vocabulary
 base_ns = Namespace("http://www.siemens.com/ontology/demonstrator#")
 amberg_ns = Namespace("http://www.siemens.com/ontologies/amberg#")
 isMadeOf = base_ns["isMadeOf"]
@@ -27,13 +29,6 @@ hasPart = URIRef("http://www.loa-cnr.it/ontologies/DUL.owl#hasPart")
 occursOn = base_ns["occursOn"]
 event = base_ns["Event"]
 
-#TODO: Define uri_to_index dictionary (if OWL does not allow exact content in comments)
-#TODO: Parse ontology w/o events --> add them with ids from extracted unique_events_dict
-#TODO: Relate modules, fes and events to ids
-
-#Training data: window size 3
-#Batch: (e1, e2, e3, m1, m2, m3) : (e2 -> e1, e2 -> e3, m2 -> m1, m3 -> m1)
-#(h1, r1, t1), (h2, r2, t2) : [h1, r1, neg t1], [h1, r1, neg t1]...
 
 def read_data(path, max_events=None):
     """Read all csv-files in *path*, merge and sort by time"""
@@ -86,23 +81,34 @@ def read_metadata(path):
 
 
 def read_ontology(path):
-    #Use defined dictionary to refer to events, modules and fe's
-    #one process implemented with connections
+    """
+
+    :param path:
+    :return:
+    """
     g = ConjunctiveGraph()
     g.load(path)
-    print "Read %d number of triples" %len(g)
-    #remove not needed triples
-    for (s,p,o) in g.triples((None, None, None)):
-        if p == URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'):
-            g.remove((s,p,o))
-        if o == OWL["NamedIndividual"]:
-            g.remove((s, p, o))
+    # remove not needed triples
+    # for (s,p,o) in g.triples((None, None, None)):
+    #     if p == URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'):
+    #         g.remove((s,p,o))
+    #     if o == OWL["NamedIndividual"]:
+    #         g.remove((s, p, o))
     return g
 
+
 def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
-    #update entities in ontology to ids of dictionaries
-    #Variants (parts), modules (fes), events
-    #Give new Ids to entities never seen before
+    """
+    Update entities in ontology to ids of dictionaries
+    Give new Ids to entities never seen before
+    :param ont:
+    :param msg_dict: event messages
+    :param mod_dict: modules
+    :param fe_dict: fes
+    :param var_dict: Variants
+    :param data:
+    :return:
+    """
     entity_uri_to_data_id = dict()
     for msg, id in msg_dict.iteritems():
         fe_or_module_id = None
@@ -116,90 +122,21 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
         ont.add((URIRef(amberg_ns['Event-'+str(id)]), occursOn, amberg_ns[fe_or_module]))
         entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
         entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
+        if "Stau" in msg:
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
+        elif "Achse" in msg:
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
+        elif "F?llstand" in msg:
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
     return ont, entity_uri_to_data_id
-
-    # same procedure for modules, fes, ...
-    """
-    #max_id to continue for new values
-    all_ids = msg_dict.values() + mod_dict.values() + fe_dict.values() + var_dict.values()
-    new_id_start = np.max(all_ids) + 1
-    for (s,p,o) in ont.triples():
-        if s not in entity_uri_to_data_id:
-            #add
-            pass
-    """
-
-
-def context_window(window_size, sequence):
-    skip = window_size // 2  # only odd window_size makes sense
-    train = []
-    labels = []
-    for i in range(skip, len(sequence) - skip):
-        current_target = i
-        context = sequence[current_target - skip: (current_target)]
-        context = context + sequence[current_target + 1: current_target + 1 + skip]
-        train.append(context)
-        labels.append(sequence[current_target])
-    return train, labels
-
-
-def context_windows(sequence, window_size, max_gap="5 minutes"):
-    result = []
-    table = pd.DataFrame(sequence)
-    off = pd.Timedelta(max_gap)
-    message_index = 0
-    variant_index = 1
-    module_index = 2
-    time_index = 3
-    # keine luecken in der reihe > max_gap in mins
-    table[time_index] = pd.to_datetime(table[time_index], format="%d.%m.%Y %H:%M:%S")
-    table = table.set_index(pd.DatetimeIndex(table[time_index]))
-    table = table.sort_index()
-    indices_list = [range(i, i + window_size) for i in xrange(0, len(sequence)-window_size)]
-    for i, indices in enumerate(indices_list):
-        window = table.iloc[indices]
-        if window.iloc[-1][time_index] - window.iloc[0][time_index] > off:
-            continue
-        # one sequence [[message, variant, module], [mesage, variant, module] ...]
-        result.append(window[[0, 1, 2]].values.tolist())
-    return result
-
-
-def context_window_for_classification(sequence, window_size, classification_size, classification_events=[]):
-    # every sequence, classify what critical event is going to happen (True/False) binary classification
-    train = []
-    labels = []
-    sequence = context_windows(sequence, window_size)
-    for i, seq in enumerate(sequence):
-        if i >= classification_size:
-            return train, labels
-        tmp_list = []
-        for index in xrange(len(seq)-1):
-            tmp_list.append(seq[index][0]) # event
-        tmp_list.append(seq[0][1]) # append the first seen variant
-        train.append(tmp_list)
-        previous_sequence = sequence[i - 1]
-        labels.append(previous_sequence[-1][2]) # append module of the last event
-    return train, labels
-
-
-def context_window_last_event(window_size, sequence):
-    train = []
-    labels = []
-    sequence = context_windows(sequence, window_size)
-    for seq in sequence:
-        tmp_list = []
-        for index in xrange(len(seq)-1):
-            tmp_list.append(seq[index][0]) # event
-        tmp_list.append(seq[0][1]) # append the first seen variant
-        train.append(tmp_list) # window_size - 1 events
-        # the n-th event , module, and, n-th variant (assuming 1st and n-th variant are the same)
-        labels.append(seq[len(seq)-1])
-    return train, labels
 
 
 def get_unique_entities(data):
-    #Extract from pandas dataframe
+    """
+    Extract from pandas dataframe
+    :param data:
+    :return:
+    """
     unique_msgs = np.unique(data[message_column])
     unique_msgs_dict = dict(zip(unique_msgs, range(len(unique_msgs))))
     unique_variants = np.unique(data[variant_column])
@@ -217,17 +154,31 @@ path = "/home/nether-nova/Documents/Amberg Events/test_data/"
 max_events = 5000
 window_size = 3
 df = read_data(path, max_events)
-fe_df = pd.read_csv(path + "messages_to_fe.csv")
+fe_df = pd.read_csv(path + "messages_to_fe.txt")
 merged = pd.merge(df, fe_df, on="Meldetext")
-#merged[module_column] = merged["FE"]    # replace module column with FE-Module
+# merged[module_column] = merged["FE"]    # replace module column with FE-Module
 merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
 merged = merged.sort_index(ascending=True)
+# TODO: filter out noisy events
 unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
-#includes relations
+# includes relations
 ontology = read_ontology(path + "./amberg_inferred.xml")
+print "Read %d number of triples" % len(ontology)
 ont, uri_to_id = update_ontology(ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
+print "Number of triples: ", len(ont)
 for k in uri_to_id:
     print k, [t for t in ont.triples((URIRef(k), None, None))]
+
+
+def get_merged_dataframe(path, fe_file_name, max_events, window_size, ):
+    df = read_data(path, max_events)
+    fe_df = pd.read_csv(path + fe_file_name)
+    merged = pd.merge(df, fe_df, on="Meldetext")
+    return merged
+
+
+def filter_dataframe(df, condition):
+    df = df.drop(df[condition].index)
 
 
 def binary_sequences(sequences, index, classification_event=None):
@@ -246,7 +197,7 @@ def binary_sequences(sequences, index, classification_event=None):
         hit = False
         if classification_event:
             for j, m in enumerate(local_entities):
-                #what if multiple matches?
+                # what if multiple matches?
                 if m == classification_event:
                     train.append(' '.join([str(lookup_dict[msg]) for msg in local_entities[x:j]]))
                     labels.append(1)

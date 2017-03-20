@@ -3,7 +3,7 @@ import numpy as np
 import os
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
-from model import EventEmbedding, EmbeddingLayer, ConcatLayer, Softmax, EventsWithWordsModel, EventsWithWordsAndVariantModel, EventsWithWordsAndVariantComposedModel
+from model import EventEmbedding, EmbeddingLayer, concat_layer, Softmax, EventsWithWordsModel, EventsWithWordsAndVariantModel, EventsWithWordsAndVariantComposedModel
 from experiments import SimpleEmbeddingExperiment, read_data, read_metadata, plot_with_labels
 import pandas as pd
 import time

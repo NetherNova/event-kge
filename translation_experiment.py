@@ -1,85 +1,16 @@
-import tensorflow as tf
 import numpy as np
-import pandas as pd
-import time
-import datetime
 import pickle
-from rdflib import ConjunctiveGraph, URIRef
-from etl import update_ontology
+from rdflib import ConjunctiveGraph
+from etl import update_ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged, prepare_sequences, message_index
 from sklearn.manifold import TSNE
 import csv
-
-
-def dot_similarity(x, y):
-    return tf.matmul(x, tf.transpose(y))
-
-
-def l2_similarity(x, y):
-    return -tf.nn.l2_loss(x - y)
-
-
-def l1_similarity(x, y):
-    return - tf.reduce_sum(tf.abs(x - y))
-
-
-def trans(x, y):
-    return x+y
-
-
-def ident_entity(x, y):
-    return x
-
-
-def max_margin(pos, neg, marge=1.0):
-    cost = 1. - pos + neg
-    return tf.reduce_mean(tf.maximum(0., cost)) # sum oder mean?
-
-
-def rank_left_fn_idx(simfn, embeddings_ent, embeddings_rel, leftop, rightop, inpr, inpo):
-    """
-    compute similarity score of all 'left' entities given 'right' and 'rel' members
-    :param simfn:
-    :param embeddings:
-    :param leftop:
-    :param rightop:
-    :return:
-    """
-    lhs = embeddings_ent
-    rell = tf.nn.embedding_lookup(embeddings_rel, inpo)
-    #relr = tf.nn.embedding_lookup(embeddings_rel, inpo)
-    rhs = tf.nn.embedding_lookup(embeddings_ent, inpr)
-    # [1377, 32, 64], [64,32]
-    expanded_lhs = tf.expand_dims(lhs, 1)
-    batch_lhs = tf.transpose(leftop(expanded_lhs, rell), [1, 2, 0])
-    batch_rhs = tf.expand_dims(rhs, 1)
-    # only dot_sim support
-    simi = tf.squeeze(tf.batch_matmul(batch_rhs, batch_lhs), 1) # [32, 1, 64], [32, 1377, 64]
-    #simi = simfn(tf.reshape(leftop(tf.expand_dims(lhs, 1), rell), [1377*32, 64]), ) # [1377*32, 32]
-    # getting *batch_size* rank lists for all entities [all_entities, batch_size] similarity
-    return simi
-
-
-def rank_right_fn_idx(simfn, embeddings_ent, embeddings_rel, leftop, rightop, inpl, inpo):
-    """
-    compute similarity score of all 'right' entities given 'left' and 'rel' members
-    :param simfn:
-    :param embeddings:
-    :param leftop:
-    :param rightop:
-    :return:
-    """
-    rhs = embeddings_ent
-    rell = tf.nn.embedding_lookup(embeddings_rel, inpo)
-    #relr = tf.nn.embedding_lookup(embeddings_rel, inpo)
-    lhs = tf.nn.embedding_lookup(embeddings_ent, inpl)
-    simi = simfn(leftop(lhs, rell), rhs) # [100, 64], [64, 1377]
-    return simi
+import itertools
+from model import TranslationEmbeddings, dot_similarity, trans, ident_entity
 
 
 class SkipgramBatchGenerator(object):
     def __init__(self, sequences, num_skips, batch_size):
         """
-
         :param sequences: list of lists of event entities
         :param num_skips:  window left and right of target
         :param batch_size:
@@ -98,7 +29,7 @@ class SkipgramBatchGenerator(object):
             for target_ind in range(self.num_skips, len(seq) - self.num_skips):
                 for i in range(-self.num_skips, self.num_skips+1):
                     if i == 0:
-                        #avoid the target_ind itself
+                        # avoid the target_ind itself
                         continue
                     self.data.append( (seq[target_ind], seq[target_ind + i]) )
 
@@ -113,9 +44,9 @@ class SkipgramBatchGenerator(object):
         return batch_x, batch_y
 
 
-
 class TripleBatchGenerator(object):
-    def __init__(self, triples, entity_dictionary, relation_dictionary, num_neg_samples, batch_size, sample_negative=True):
+    def __init__(self, triples, entity_dictionary, relation_dictionary, num_neg_samples, batch_size,
+                 sample_negative=True):
         self.all_triples = []
         self.batch_index = 0
         self.batch_size = batch_size
@@ -158,7 +89,6 @@ class TripleBatchGenerator(object):
             inpr.append(current_triple[2])
             inpo.append(current_triple[1])
             # Append current triple twice
-            #TODO: do not do that for test set
             if self.sample_negative:
                 inpl.append(current_triple[0])
                 inpr.append(current_triple[2])
@@ -183,248 +113,121 @@ class TripleBatchGenerator(object):
         else:
             sample_set = [ent for ent in self.entity_dictionary.values() if ent != o_ind]
             o_ind = np.random.choice(sample_set, 1)[0]
-        return (o_ind, s_ind, p_ind)
+        return o_ind, s_ind, p_ind
 
 
-class TranslationEmbeddings(object):
-    """
-    Implements triplet scoring from negative sampling
-    """
-    def __init__(self, num_entities, num_relations, embedding_size, batch_size, vocab_size, leftop, rightop, fnsim):
-        self.num_entities = num_entities
-        self.num_relations = num_relations
-        self.embedding_size = embedding_size
-        self.vocab_size = vocab_size
-        self.num_sampled = 5
-        self.batch_size = batch_size
-        self.leftop = leftop
-        self.rightop = rightop
-        self.fnsim = fnsim
-
-    def normalize_embeddings(self):
-        self.E = self.normalize(self.E)
-        self.R = self.normalize(self.R)
-        return self.E, self.R
-
-    def normalize(self, W):
-        return W / tf.expand_dims(tf.sqrt(tf.reduce_sum(W ** 2, axis=1)), 1)
-
-    def run(self, tg, sg, reverse_dictionary, data, test_tg, test_size):
-        print('Running Model')
-        graph = tf.Graph()
-        with graph.as_default():
-            # Translation Model
-            w_bound = np.sqrt(6. / self.embedding_size)
-            self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound, maxval=w_bound))
-            self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound, maxval=w_bound))
-
-            normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
-            normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
-
-            inpr = tf.placeholder(tf.int32, [self.batch_size], name="rhs")
-            inpl = tf.placeholder(tf.int32, [self.batch_size], name="lhs")
-            inpo = tf.placeholder(tf.int32, [self.batch_size], name="rell")
-
-            inprn = tf.placeholder(tf.int32, [self.batch_size], name="rhs")
-            inpln = tf.placeholder(tf.int32, [self.batch_size], name="lhs")
-            inpon = tf.placeholder(tf.int32, [self.batch_size], name="rell")
-
-            test_inpr = tf.placeholder(tf.int32, [test_size], name="test_rhs")
-            test_inpl = tf.placeholder(tf.int32, [test_size], name="test_lhs")
-            test_inpo = tf.placeholder(tf.int32, [test_size], name="test_ell")
-
-            lhs = tf.nn.embedding_lookup(self.E, inpl)
-            rhs = tf.nn.embedding_lookup(self.E, inpr)
-            rell = tf.nn.embedding_lookup(self.R, inpo)
-            relr = tf.nn.embedding_lookup(self.R, inpo)
-
-            lhsn = tf.nn.embedding_lookup(self.E, inpln)
-            rhsn = tf.nn.embedding_lookup(self.E, inprn)
-            relln = tf.nn.embedding_lookup(self.R, inpon)
-            relrn = tf.nn.embedding_lookup(self.R, inpon)
-
-            simi = self.fnsim(self.leftop(lhs, rell), self.rightop(rhs, relr))
-            simin = self.fnsim(self.leftop(lhsn, relln), self.rightop(rhsn, relrn))
-            kg_loss = max_margin(simi, simin)
-
-            # Skipgram Model
-            train_inputs = tf.placeholder(tf.int32, shape=[batch_size])
-            train_labels = tf.placeholder(tf.int32, shape=[batch_size, 1])
-            #valid_dataset = tf.constant(valid_examples, dtype=tf.int32)
-
-            #embeddings = tf.Variable(
-            #    tf.random_uniform([self.vocab_size, embedding_size], -1.0, 1.0))
-            embed = tf.nn.embedding_lookup(self.E, train_inputs)
-
-            nce_weights = tf.Variable(
-                tf.truncated_normal([self.vocab_size, embedding_size],
-                                    stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-            nce_biases = tf.Variable(tf.zeros([self.vocab_size]))
-            skipgram_loss = loss = tf.reduce_mean(
-                tf.nn.nce_loss(weights=nce_weights,
-                               biases=nce_biases,
-                               labels=train_labels,
-                               inputs=embed,
-                               num_sampled=self.num_sampled,
-                               num_classes=self.vocab_size,
-                               remove_accidental_hits=True))
-
-            loss = kg_loss + skipgram_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
-            optimizer = tf.train.AdagradOptimizer(1.0).minimize(loss)
-
-            ranking_error_l = rank_left_fn_idx(self.fnsim, self.E, self.R, leftop, rightop, test_inpr, test_inpo)
-            ranking_error_r = rank_right_fn_idx(self.fnsim, self.E, self.R, leftop, rightop, test_inpl, test_inpo)
-
-            # anderer Ansatz: Trainiere erst skipgram embeddings --> dann faktorisiere kg mit vortrainierten
-            # varianten-spezigische embeddings --> trainiere auf datensatz mit
-            # neural language model --> "topic"-spezifische Embeddings
-            # Topic-spezigische KG Embeddings?
-
-        with tf.Session(graph=graph) as session:
-            tf.global_variables_initializer().run()
-            print('Initialized')
-            average_loss = 0
-            best_hits = -np.inf
-            best_rank = np.inf
-            for b in range(5001):
-                batch_pos, batch_neg = tg.next()
-                test_batch_pos, _ = test_tg.next()
-                batch_x, batch_y = sg.next()
-                batch_y = np.array(batch_y).reshape((batch_size, 1))
-                session.run([normalize_E, normalize_R])
-                # calculate valid indices for scoring
-
-                feed_dict = {inpl: batch_pos[1, :], inpr: batch_pos[0, :], inpo: batch_pos[2, :],
-                             inpln: batch_neg[1, :], inprn: batch_neg[0, :], inpon: batch_neg[2, :],
-                             train_inputs: batch_x, train_labels: batch_y
-                             }
-                _, l = session.run([optimizer, loss], feed_dict=feed_dict)
-                average_loss += l
-                if b % 200 == 0:
-                    feed_dict = {test_inpl: test_batch_pos[1, :], test_inpo: test_batch_pos[2, :],
-                                 test_inpr: test_batch_pos[0, :]}
-                    scores_l, scores_r = session.run([ranking_error_l, ranking_error_r], feed_dict=feed_dict)
-
-                    errl = []
-                    errr = []
-                    for i, (l, o, r) in enumerate(
-                            zip(test_batch_pos[1, :], test_batch_pos[2, :], test_batch_pos[0, :])):
-                        # print "Variance l: ", np.var(scores_l[i, :])
-                        # print "Variance r: ", np.var(scores_r[i, :])
-                        # find those triples that have <*,o,r> and * != l
-                        rmv_idx_l = [l_rmv for (l_rmv, rel, rhs) in test_tg.all_triples if
-                                     rel == o and r == rel and l_rmv != l]
-                        # *l* is the correct index
-                        scores_l[i, rmv_idx_l] = -np.inf
-                        # print i, l ,o ,r
-                        # print "Should be: " + str(l) + " is: " + str(np.argmax(scores_l[i, :]))
-                        # print np.argsort(-scores_l[i, :])[0] # always 0?
-                        # print "Should be: " + str(l)
-                        errl += [np.argsort(np.argsort(-scores_l[i, :]))[l] + 1]
-                        # since index start at 0, best possible value is 1
-
-                        rmv_idx_r = [r_rmv for (lhs, rel, r_rmv) in test_tg.all_triples if
-                                     rel == o and lhs == l and r_rmv != r]
-                        # *l* is the correct index
-                        scores_r[i, rmv_idx_r] = -np.inf
-                        # print "Should be: " + str(r) + " is: " + str(np.argmax(scores_r[i, :]))
-                        errr += [np.argsort(np.argsort(-scores_r[i, :]))[r] + 1]
-                        # since index start at 0, best possible value is 1
-
-                    hits_10 = np.mean(np.asarray(errl + errr) <= 10) * 100
-                    mean_rank = np.mean(np.asarray(errl + errr))
-                    print "Hits10: ", hits_10
-                    print "MeanRank: ", mean_rank
-
-                    if best_hits < hits_10:
-                        best_hits = hits_10
-                    if best_rank > mean_rank:
-                        best_rank = mean_rank
-
-                    if b > 0:
-                        average_loss = average_loss / 200
-                    # The average loss is an estimate of the loss over the last 2000 batches.
-                    print('Average loss at step %d: %f' % (b, average_loss))
-                    average_loss = 0
-                    """
-                    embs = session.run(self.E)
-
-                    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
-                    low_dim_embs = tsne.fit_transform(embs)
-                    for i in range(low_dim_embs.shape[0]):
-                        if i not in reverse_dictionary:
-                            continue
-                        module = data[data["Meldetext"] == reverse_dictionary[i]]["Module"]
-                        module = np.unique(module)[0]
-                        writer.writerow([str(b), module, reverse_dictionary[i], low_dim_embs[i][0], low_dim_embs[i][1]])
-                    """
-            return session.run(self.E), session.run(self.R), best_hits, best_rank
+class Parameters(object):
+    def __init__(self, **kwds):
+        self.__dict__.update(kwds)
 
 
-embedding_sizes = [64, 128, 256]
-seq_data_sizes = np.arange(0.1, 1.1, 0.1)
-n_folds = 5
-test_proportion = 0.2
+def cross_parameter_eval(param_dict):
+    keys = param_dict.keys()
+    num_params = len(keys)
+    value_lists = param_dict.values()
+    return (dict(zip(keys, k)) for k in itertools.product(*param_dict.values()))
 
-for embedding_size in embedding_sizes:
-    print "Embedding size: ", embedding_size
-    with open("evaluation_kg_skipgram_" + str(embedding_size) + ".csv", "wb") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["fold", "seq_data_size", "best_hits", "best_rank"])
-        for seq_data_size in seq_data_sizes:
-            print "Seq data size: ", seq_data_size
-            for fold in xrange(n_folds):
-                print "Fold: ", fold
-                embedding_size = embedding_size
-                batch_size = 32
-                fnsim = dot_similarity
-                leftop = trans
-                rightop = ident_entity
 
-                g = ConjunctiveGraph()
-                g.load("./test_data/amberg_inferred.xml")
+def slice_ontology(ontology, proportion):
+    ont_slice = ConjunctiveGraph()
+    reduced_size = int(np.floor(proportion * len(ontology)))
+    remove_indices = np.random.randint(0, len(ontology), len(ontology) - reduced_size)
+    for i, (s, p, o) in enumerate(ontology.triples((None, None, None))):
+        if i in remove_indices:
+            ontology.remove((s, p, o))
+            ont_slice.add((s, p, o))
+    return reduced_size, ont_slice
 
-                from etl import update_ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged
 
-                g, uri_to_id = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
-                ent_dict = uri_to_id
-                rel_dict = {}
-                for t in g.triples((None, None, None)):
-                    if t[0] not in ent_dict:
-                        ent_dict.setdefault(t[0], len(ent_dict))
-                    if t[1] not in ent_dict:
-                        ent_dict.setdefault(t[2], len(ent_dict))
-                    rel_dict.setdefault(t[1], len(rel_dict))
+def plot_embeddings(embs, reverse_dictionary, data):
+    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
+    low_dim_embs = tsne.fit_transform(embs)
+    for i in range(low_dim_embs.shape[0]):
+        if i not in reverse_dictionary:
+            continue
+        module = data[data["Meldetext"] == reverse_dictionary[i]]["Module"]
 
-                test_size = int(np.floor(test_proportion * len(g)))
-                test_indices = np.random.randint(0, len(g), test_size)
+# Hyper-Parameters
+param_dict = {}
+param_dict['embedding_size'] = [60, 100, 140, 180]
+param_dict['seq_data_size'] = [1.0]
+param_dict['batch_size'] = [32, 64, 128]
+param_dict['learning_rate'] = [0.5, 0.8, 1.0]
+# seq_data_sizes = np.arange(0.1, 1.0, 0.2)
+n_folds = 4
+test_proportion = 0.03
+fnsim = dot_similarity
+leftop = trans
+rightop = ident_entity
 
-                g_test = ConjunctiveGraph()
-                for i, (s, p, o) in enumerate(g.triples((None, None, None))):
-                    if i in test_indices:
-                        g_test.add((s, p, o))
-                        g.remove((s, p, o))
+# SKIP
+skipgram = True
+if skipgram:
+    param_dict['num_skips'] = [2, 4]
+    param_dict['num_sampled'] = [5, 9]
+    param_dict['batch_size_sg'] = [128, 512]
+    prepare_sequences(merged, "train_sequences", message_index, classification_event=None)
 
-                # TODO: evtl. ontology anpassen, dass sich mehrere Sachen aendern von Var1 auf Var2
-                # TODO: als test, neue events vorhersagen aus welchem FE sie kommen
 
-                num_entities = len(ent_dict)
-                num_relations = len(rel_dict)
+with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(
+        ["embedding_size", "batch_size", "learning_rate", "num_skips", "num_sampled", "batch_size_sg", "fold",
+         "training_step", "mean_rank", "hits_top_10", "grad_E", "grad_R", "loss"])
+    for tmp_param_dict in cross_parameter_eval(param_dict):
+        params = Parameters(**tmp_param_dict)
+        print "Embedding size: ", params.embedding_size
+        print "Batch size: ", params.batch_size
+        print "Learning rate: ", params.learning_rate
+        for fold in xrange(n_folds):
+            print "Fold: ", fold
+            # TODO: second (transformed) version of ontology
+            g = ConjunctiveGraph()
+            g.load("./test_data/amberg_inferred.xml")
 
-                tg = TripleBatchGenerator(g, ent_dict, rel_dict, 1, batch_size)
-                test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, test_size, sample_negative=False)
-                print test_tg.next()
+            g, uri_to_id = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
+            ent_dict = uri_to_id
+            rel_dict = {}
+            for t in g.triples((None, None, None)):
+                if t[0] not in ent_dict:
+                    ent_dict.setdefault(t[0], len(ent_dict))
+                if t[1] not in ent_dict:
+                    ent_dict.setdefault(t[2], len(ent_dict))
+                rel_dict.setdefault(t[1], len(rel_dict))
 
-                sequences = [seq.split(' ') for seq in pickle.load(open("./test_data/train_sequences.pickle", "rb"))]
-                sequences = sequences[: int(np.floor(len(sequences) *  seq_data_size))]
-                sg = SkipgramBatchGenerator(sequences, 2, batch_size)
+            train_size = slice_ontology(g, params.seq_data_size)
+            print "Train size: ", train_size
+            # randomly reduce g
+            test_size, g_test = slice_ontology(g, test_proportion)
+            print "Test size: ", test_size
 
-                reverse_dictionary = dict(zip(unique_msgs.values(), unique_msgs.keys()))
+            num_entities = len(ent_dict)
+            num_relations = len(rel_dict)
+            tg = TripleBatchGenerator(g, ent_dict, rel_dict, 1, params.batch_size)
+            test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, test_size, sample_negative=False)
+            sequences = [seq.split(' ') for seq in pickle.load(open("./test_data/train_sequences.pickle", "rb"))]
+            # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
+            if skipgram:
+                batch_size_sg = params.batch_size_sg
+                num_skips = params.num_skips
+                sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
+                num_sampled = params.num_sampled
+            else:
+                sg = None
+                num_sampled = 0
+                batch_size_sg = 0
+                num_skips = 0
+            reverse_dictionary = dict(zip(unique_msgs.values(), unique_msgs.keys()))
+            model = TranslationEmbeddings(num_entities, num_relations, params.embedding_size, params.batch_size,
+                                          batch_size_sg, num_sampled, len(unique_msgs),
+                                          leftop, rightop, fnsim)
+            embs, r_embs, best_hits, best_rank, mean_rank_list, hits_10_list, gradients_E, gradients_R, loss_list = \
+                model.run(tg, sg, reverse_dictionary, merged, test_tg, test_size, 300, params.learning_rate, skipgram)
 
-                model = TranslationEmbeddings(num_entities, num_relations, embedding_size, batch_size, len(unique_msgs),
-                                              leftop, rightop, fnsim)
-                embs, r_embs, best_hits, best_rank = model.run(tg, sg, reverse_dictionary, merged, test_tg, test_size)
-                writer.writerow([fold, seq_data_size, best_hits, best_rank])
+            print "Best hits", best_hits
+            print "Best rank", best_rank
 
-                #TODO: as labels emit modules for events too --> show in plots clusters of modules
-                #TODO: prediction tests machen auf modul struktur
+            for i in range(len(mean_rank_list)):
+                writer.writerow([params.embedding_size, params.batch_size, params.learning_rate, num_skips, num_sampled,
+                                 batch_size_sg, fold, i, mean_rank_list[i], hits_10_list[i], gradients_E[i],
+                                 gradients_R[i], loss_list[i]])
