@@ -6,6 +6,10 @@ from sklearn.manifold import TSNE
 import csv
 import itertools
 from model import TranslationEmbeddings, dot_similarity, trans, ident_entity
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+from model import SuppliedEmbedding
 
 
 class SkipgramBatchGenerator(object):
@@ -56,6 +60,9 @@ class TripleBatchGenerator(object):
         self.sample_negative = sample_negative
 
         for (s,p,o) in triples:
+            s = unicode(s)
+            p = unicode(p)
+            o = unicode(o)
             if s not in self.entity_dictionary:
                 continue
             if o not in self.entity_dictionary:
@@ -123,8 +130,6 @@ class Parameters(object):
 
 def cross_parameter_eval(param_dict):
     keys = param_dict.keys()
-    num_params = len(keys)
-    value_lists = param_dict.values()
     return (dict(zip(keys, k)) for k in itertools.product(*param_dict.values()))
 
 
@@ -139,22 +144,48 @@ def slice_ontology(ontology, proportion):
     return reduced_size, ont_slice
 
 
-def plot_embeddings(embs, reverse_dictionary, data):
+def plot_embeddings(embs, reverse_dictionary):
     tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
     low_dim_embs = tsne.fit_transform(embs)
+    df = pd.DataFrame(low_dim_embs, columns=['x1', 'x2'])
+    sns.lmplot('x1', 'x2', data=df, scatter=True, fit_reg=False)
+
     for i in range(low_dim_embs.shape[0]):
         if i not in reverse_dictionary:
             continue
-        module = data[data["Meldetext"] == reverse_dictionary[i]]["Module"]
+        x, y = low_dim_embs[i, :]
+        plt.annotate(reverse_dictionary[i],
+                     xy=(x, y),
+                     xytext=(5, 2),
+                     textcoords='offset points',
+                     ha='right',
+                     va='bottom')
+
+
+def get_low_dim_embs(embs, reverse_dictionary, dim=2):
+    tsne = TSNE(perplexity=30, n_components=dim, init='pca', n_iter=5000)
+    low_dim_embs = tsne.fit_transform(embs)
+    colnames = ['x' + str(i) for i in range(dim)]
+    df = pd.DataFrame(low_dim_embs, columns=colnames)
+    df["id"] = [i for i in range(low_dim_embs.shape[0])]
+    df["uri"] = [reverse_dictionary[k] for k in reverse_dictionary]
+    df = df.set_index("id")
+    return df
+
+
+def distance_matrix(embeddings):
+    return np.dot(embeddings, np.transpose(embeddings))
+
 
 # Hyper-Parameters
 param_dict = {}
-param_dict['embedding_size'] = [60, 100, 140, 180]
+param_dict['embedding_size'] = [140]    #[60, 100, 140, 180]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [32, 64, 128]
-param_dict['learning_rate'] = [0.5, 0.8, 1.0]
+param_dict['batch_size'] = [128] #[32, 64, 128]
+param_dict['learning_rate'] = [1.0] #[0.5, 0.8, 1.0]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-n_folds = 4
+n_folds = 1  # 4
+num_steps = 300
 test_proportion = 0.03
 fnsim = dot_similarity
 leftop = trans
@@ -163,9 +194,9 @@ rightop = ident_entity
 # SKIP
 skipgram = True
 if skipgram:
-    param_dict['num_skips'] = [2, 4]
-    param_dict['num_sampled'] = [5, 9]
-    param_dict['batch_size_sg'] = [128, 512]
+    param_dict['num_skips'] = [2]   # [2, 4]
+    param_dict['num_sampled'] = [9]  # [5, 9]
+    param_dict['batch_size_sg'] = [128] # [128, 512]
     prepare_sequences(merged, "train_sequences", message_index, classification_event=None)
 
 
@@ -185,17 +216,22 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
             g = ConjunctiveGraph()
             g.load("./test_data/amberg_inferred.xml")
 
-            g, uri_to_id = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
-            ent_dict = uri_to_id
+            g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
             rel_dict = {}
+            ent_counter = 0
             for t in g.triples((None, None, None)):
                 if t[0] not in ent_dict:
-                    ent_dict.setdefault(t[0], len(ent_dict))
-                if t[1] not in ent_dict:
-                    ent_dict.setdefault(t[2], len(ent_dict))
-                rel_dict.setdefault(t[1], len(rel_dict))
+                    while ent_counter in ent_dict.values():
+                        ent_counter += 1
+                    ent_dict.setdefault(unicode(t[0]), ent_counter)
+                if t[2] not in ent_dict:
+                    while ent_counter in ent_dict.values():
+                        ent_counter += 1
+                    ent_dict.setdefault(unicode(t[2]), ent_counter)
+                if t[1] not in rel_dict:
+                    rel_dict.setdefault(unicode(t[1]), len(rel_dict))
 
-            train_size = slice_ontology(g, params.seq_data_size)
+            train_size, _ = slice_ontology(g, params.seq_data_size)
             print "Train size: ", train_size
             # randomly reduce g
             test_size, g_test = slice_ontology(g, test_proportion)
@@ -204,6 +240,7 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
             num_entities = len(ent_dict)
             num_relations = len(rel_dict)
             tg = TripleBatchGenerator(g, ent_dict, rel_dict, 1, params.batch_size)
+            print tg.next()
             test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, test_size, sample_negative=False)
             sequences = [seq.split(' ') for seq in pickle.load(open("./test_data/train_sequences.pickle", "rb"))]
             # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
@@ -222,7 +259,22 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
                                           batch_size_sg, num_sampled, len(unique_msgs),
                                           leftop, rightop, fnsim)
             embs, r_embs, best_hits, best_rank, mean_rank_list, hits_10_list, gradients_E, gradients_R, loss_list = \
-                model.run(tg, sg, reverse_dictionary, merged, test_tg, test_size, 300, params.learning_rate, skipgram)
+                model.run(tg, sg, test_tg, test_size, num_steps, params.learning_rate, skipgram, store_embeddings=True)
+
+
+            reverse_entity_dictionary = dict(zip(ent_dict.values(), ent_dict.keys()))
+            for msg_name, msg_id in unique_msgs.iteritems():
+                reverse_entity_dictionary[msg_id] = msg_name
+            reverse_relation_dictionary = dict(zip(rel_dict.values(), rel_dict.keys()))
+
+
+            # save embeddings to disk
+            for i in range(len(embs)):
+                df_embs = get_low_dim_embs(embs[i], reverse_entity_dictionary)
+                df_embs.to_csv("./Embeddings/entity_embeddings" + str(i) + ".csv", sep=',', encoding='utf-8')
+
+                df_r_embs = get_low_dim_embs(r_embs[i], reverse_relation_dictionary)
+                df_r_embs.to_csv("./Embeddings/relation_embeddings" + str(i) + ".csv", sep=',', encoding='utf-8')
 
             print "Best hits", best_hits
             print "Best rank", best_rank

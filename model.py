@@ -363,7 +363,7 @@ class TranslationEmbeddings(object):
         self.R = normalize(self.R)
         return self.E, self.R
 
-    def run(self, tg, sg, reverse_dictionary, data, test_tg, test_size, num_steps, init_lr=1.0, skipgram=True):
+    def run(self, tg, sg, test_tg, test_size, num_steps, init_lr=1.0, skipgram=True, store_embeddings=False):
         print('Running Model')
         graph = tf.Graph()
         with graph.as_default():
@@ -452,7 +452,9 @@ class TranslationEmbeddings(object):
             g_E_list = []
             g_R_list = []
             loss_list = []
-
+            if store_embeddings:
+                entity_embs = []
+                relation_embs = []
             for b in range(1, num_steps + 1):
                 batch_pos, batch_neg = tg.next()
                 test_batch_pos, _ = test_tg.next()
@@ -511,9 +513,17 @@ class TranslationEmbeddings(object):
                     loss_list.append(average_loss)
                     g_E_list.append(g_Es)
                     g_R_list.append(g_Rs)
+
+                    if store_embeddings:
+                        entity_embs.append(session.run(self.E))
+                        relation_embs.append(session.run(self.R))
+
                     # The average loss is an estimate of the loss over the last eval_step_size batches.
                     print('Average loss at step %d: %f' % (b, average_loss))
                     average_loss = 0
                     g_Es = 0
                     g_Rs = 0
-            return session.run(self.E), session.run(self.R), best_hits, best_rank, mean_rank_list, hits_10_list, g_E_list, g_R_list, loss_list
+                if not store_embeddings:
+                    entity_embs = session.run(self.E)
+                    relation_embs = session.run(self.R)
+            return entity_embs, relation_embs, best_hits, best_rank, mean_rank_list, hits_10_list, g_E_list, g_R_list, loss_list

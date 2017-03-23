@@ -170,10 +170,12 @@ for k in uri_to_id:
     print k, [t for t in ont.triples((URIRef(k), None, None))]
 
 
-def get_merged_dataframe(path, fe_file_name, max_events, window_size, ):
+def get_merged_dataframe(path, fe_file_name):
     df = read_data(path, max_events)
     fe_df = pd.read_csv(path + fe_file_name)
     merged = pd.merge(df, fe_df, on="Meldetext")
+    merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
+    merged = merged.sort_index(ascending=True)
     return merged
 
 
