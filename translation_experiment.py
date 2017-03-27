@@ -5,7 +5,7 @@ from etl import update_ontology, unique_msgs, unique_mods, unique_fes, unique_va
 from sklearn.manifold import TSNE
 import csv
 import itertools
-from model import TranslationEmbeddings, dot_similarity, trans, ident_entity
+from model import TranslationEmbeddings, dot_similarity, trans, ident_entity, TransH, l2_similarity
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -36,6 +36,7 @@ class SkipgramBatchGenerator(object):
                         # avoid the target_ind itself
                         continue
                     self.data.append( (seq[target_ind], seq[target_ind + i]) )
+        np.random.shuffle(self.data)
 
     def next(self):
         batch_x = []
@@ -50,7 +51,7 @@ class SkipgramBatchGenerator(object):
 
 class TripleBatchGenerator(object):
     def __init__(self, triples, entity_dictionary, relation_dictionary, num_neg_samples, batch_size,
-                 sample_negative=True):
+                 sample_negative=True, bern_probs=None):
         self.all_triples = []
         self.batch_index = 0
         self.batch_size = batch_size
@@ -58,8 +59,9 @@ class TripleBatchGenerator(object):
         self.entity_dictionary = entity_dictionary
         self.relation_dictionary = relation_dictionary
         self.sample_negative = sample_negative
+        self.bern_probs = bern_probs
 
-        for (s,p,o) in triples:
+        for (s, p, o) in triples:
             s = unicode(s)
             p = unicode(p)
             o = unicode(o)
@@ -84,7 +86,7 @@ class TripleBatchGenerator(object):
         inpln = []
         inpon = []
         if self.sample_negative:
-            batch_size_tmp = self.batch_size // 2
+            batch_size_tmp = self.batch_size #// 2
         else:
             batch_size_tmp = self.batch_size
 
@@ -97,24 +99,23 @@ class TripleBatchGenerator(object):
             inpo.append(current_triple[1])
             # Append current triple twice
             if self.sample_negative:
-                inpl.append(current_triple[0])
-                inpr.append(current_triple[2])
-                inpo.append(current_triple[1])
-
-                rn, ln, on = self.get_negative_sample(current_triple, True)
-                inpln.append(ln)
-                inprn.append(rn)
-                inpon.append(on)
-                # repeat
-                rn, ln, on = self.get_negative_sample(current_triple, False)
+                rn, ln, on = self.get_negative_sample(current_triple)
                 inpln.append(ln)
                 inprn.append(rn)
                 inpon.append(on)
             self.batch_index += 1
         return np.array([inpr, inpl, inpo]), np.array([inprn, inpln, inpon])
 
-    def get_negative_sample(self, (s_ind,p_ind,o_ind), left=True):
-        if left:
+    def get_negative_sample(self, (s_ind,p_ind,o_ind), left_probability=0.5):
+        """
+        Uniform sampling (avoiding correct triple from being sampled again)
+        :param left_probability:
+        :return:
+        """
+        if self.bern_probs:
+            # with (tph / (tph + hpt)) probability we sample a *head*
+            left_probability = self.bern_probs[p_ind]
+        if np.random.binomial(1, left_probability) > 0:
             sample_set = [ent for ent in self.entity_dictionary.values() if ent != s_ind]
             s_ind = np.random.choice(sample_set, 1)[0]
         else:
@@ -130,18 +131,27 @@ class Parameters(object):
 
 def cross_parameter_eval(param_dict):
     keys = param_dict.keys()
-    return (dict(zip(keys, k)) for k in itertools.product(*param_dict.values()))
+    return [dict(zip(keys, k)) for k in itertools.product(*param_dict.values())]
 
 
 def slice_ontology(ontology, proportion):
+    """
+    Slice ontology into two splits (train, test), with test *proportion*
+    Work with copy of original ontology (do not modify)
+    :param ontology:
+    :param proportion: percentage to be sliced out
+    :return:
+    """
     ont_slice = ConjunctiveGraph()
-    reduced_size = int(np.floor(proportion * len(ontology)))
-    remove_indices = np.random.randint(0, len(ontology), len(ontology) - reduced_size)
+    ont_reduced = ConjunctiveGraph()
+    slice_size = int(np.floor(proportion * len(ontology)))
+    slice_indices = np.random.choice(range(0, len(ontology)), slice_size, replace=False)
     for i, (s, p, o) in enumerate(ontology.triples((None, None, None))):
-        if i in remove_indices:
-            ontology.remove((s, p, o))
+        if i in slice_indices:
             ont_slice.add((s, p, o))
-    return reduced_size, ont_slice
+        else:
+            ont_reduced.add((s, p, o))
+    return ont_slice, ont_reduced
 
 
 def plot_embeddings(embs, reverse_dictionary):
@@ -173,74 +183,108 @@ def get_low_dim_embs(embs, reverse_dictionary, dim=2):
     return df
 
 
-def distance_matrix(embeddings):
-    return np.dot(embeddings, np.transpose(embeddings))
+def bernoulli_probs(ontology, relation_dictionary):
+    """
+    Obtain bernoulli probabilities for each relation
+    :param ontology:
+    :param relation_dictionary:
+    :return:
+    """
+    probs = dict()
+    relations = set(ontology.predicates(None, None))
+    for r in relations:
+        heads = set(ontology.subjects(r, None))
+        tph = 0
+        for h in heads:
+            tails = set(ontology.objects(h, r))
+            tph += len(tails)
+        tph = tph / (1.0 * len(heads))
+
+        tails = set(ontology.objects(None, r))
+        hpt = 0
+        for t in tails:
+            heads = set(ontology.subjects(r, t))
+            hpt += len(heads)
+        hpt = hpt / (1.0 * len(tails))
+        probs[relation_dictionary[unicode(r)]] = tph / (tph + hpt)
+    return probs
+
+
+class TranslationModels:
+    Trans_E, Trans_H = range(2)
 
 
 # Hyper-Parameters
+model_type = TranslationModels.Trans_E
+bernoulli = True
+skipgram = True
+store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [140]    #[60, 100, 140, 180]
+param_dict['embedding_size'] = [120, 160, 200]    #[60, 100, 140, 180]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [128] #[32, 64, 128]
+param_dict['batch_size'] = [32, 64] #[32, 64, 128]
 param_dict['learning_rate'] = [1.0] #[0.5, 0.8, 1.0]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-n_folds = 1  # 4
-num_steps = 300
+n_folds = 4  # 4
+num_steps = 400
 test_proportion = 0.03
-fnsim = dot_similarity
+fnsim = l2_similarity
 leftop = trans
 rightop = ident_entity
 
-# SKIP
-skipgram = True
+# SKIP Parameters
 if skipgram:
-    param_dict['num_skips'] = [2]   # [2, 4]
-    param_dict['num_sampled'] = [9]  # [5, 9]
+    param_dict['num_skips'] = [3,4]   # [2, 4]
+    param_dict['num_sampled'] = [7]  # [5, 9]
     param_dict['batch_size_sg'] = [128] # [128, 512]
     prepare_sequences(merged, "train_sequences", message_index, classification_event=None)
 
+# Ontology preparation
+g = ConjunctiveGraph()
+g.load("./test_data/amberg_inferred.xml")
+
+g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
+rel_dict = {}
+ent_counter = 0
+for t in g.triples((None, None, None)):
+    if t[0] not in ent_dict:
+        while ent_counter in ent_dict.values():
+            ent_counter += 1
+        ent_dict.setdefault(unicode(t[0]), ent_counter)
+    if t[2] not in ent_dict:
+        while ent_counter in ent_dict.values():
+            ent_counter += 1
+        ent_dict.setdefault(unicode(t[2]), ent_counter)
+    if t[1] not in rel_dict:
+        rel_dict.setdefault(unicode(t[1]), len(rel_dict))
 
 with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(
         ["embedding_size", "batch_size", "learning_rate", "num_skips", "num_sampled", "batch_size_sg", "fold",
-         "training_step", "mean_rank", "hits_top_10", "grad_E", "grad_R", "loss"])
-    for tmp_param_dict in cross_parameter_eval(param_dict):
+         "training_step", "mean_rank", "hits_top_10", "loss"])
+    param_combs = cross_parameter_eval(param_dict)
+    for comb_num, tmp_param_dict in enumerate(param_combs):
         params = Parameters(**tmp_param_dict)
+        print "Progress: %d prct" %(int((100 * comb_num) / len(param_combs)))
         print "Embedding size: ", params.embedding_size
         print "Batch size: ", params.batch_size
-        print "Learning rate: ", params.learning_rate
         for fold in xrange(n_folds):
             print "Fold: ", fold
             # TODO: second (transformed) version of ontology
-            g = ConjunctiveGraph()
-            g.load("./test_data/amberg_inferred.xml")
-
-            g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
-            rel_dict = {}
-            ent_counter = 0
-            for t in g.triples((None, None, None)):
-                if t[0] not in ent_dict:
-                    while ent_counter in ent_dict.values():
-                        ent_counter += 1
-                    ent_dict.setdefault(unicode(t[0]), ent_counter)
-                if t[2] not in ent_dict:
-                    while ent_counter in ent_dict.values():
-                        ent_counter += 1
-                    ent_dict.setdefault(unicode(t[2]), ent_counter)
-                if t[1] not in rel_dict:
-                    rel_dict.setdefault(unicode(t[1]), len(rel_dict))
-
-            train_size, _ = slice_ontology(g, params.seq_data_size)
-            print "Train size: ", train_size
+            # train_size, _ = slice_ontology(g, params.seq_data_size)
             # randomly reduce g
-            test_size, g_test = slice_ontology(g, test_proportion)
+            g_test, g_train = slice_ontology(g, test_proportion)
+            train_size = len(g_train)
+            test_size = len(g_test)
+            print "Train size: ", train_size
             print "Test size: ", test_size
 
             num_entities = len(ent_dict)
             num_relations = len(rel_dict)
-            tg = TripleBatchGenerator(g, ent_dict, rel_dict, 1, params.batch_size)
-            print tg.next()
+            if bernoulli:
+                bern_probs = bernoulli_probs(g, rel_dict)
+            tg = TripleBatchGenerator(g_train, ent_dict, rel_dict, 1, params.batch_size, bern_probs=bern_probs)
             test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, test_size, sample_negative=False)
             sequences = [seq.split(' ') for seq in pickle.load(open("./test_data/train_sequences.pickle", "rb"))]
             # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
@@ -250,23 +294,27 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
                 sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
                 num_sampled = params.num_sampled
             else:
-                sg = None
-                num_sampled = 0
+                num_sampled = 1
                 batch_size_sg = 0
                 num_skips = 0
+                sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
             reverse_dictionary = dict(zip(unique_msgs.values(), unique_msgs.keys()))
-            model = TranslationEmbeddings(num_entities, num_relations, params.embedding_size, params.batch_size,
-                                          batch_size_sg, num_sampled, len(unique_msgs),
-                                          leftop, rightop, fnsim)
-            embs, r_embs, best_hits, best_rank, mean_rank_list, hits_10_list, gradients_E, gradients_R, loss_list = \
-                model.run(tg, sg, test_tg, test_size, num_steps, params.learning_rate, skipgram, store_embeddings=True)
 
+            if model_type == TranslationModels.Trans_E:
+                model = TranslationEmbeddings(num_entities, num_relations, params.embedding_size, params.batch_size,
+                                               batch_size_sg, num_sampled, len(unique_msgs),
+                                               leftop, rightop, fnsim)
+            elif model_type == TranslationModels.Trans_H:
+                model = TransH(num_entities, num_relations, params.embedding_size, params.batch_size,
+                                               batch_size_sg, num_sampled, len(unique_msgs))
+
+            embs, r_embs, best_hits, best_rank, mean_rank_list, hits_10_list, loss_list = \
+                model.run(tg, sg, test_tg, test_size, num_steps, params.learning_rate, skipgram, store_embeddings)
 
             reverse_entity_dictionary = dict(zip(ent_dict.values(), ent_dict.keys()))
             for msg_name, msg_id in unique_msgs.iteritems():
                 reverse_entity_dictionary[msg_id] = msg_name
             reverse_relation_dictionary = dict(zip(rel_dict.values(), rel_dict.keys()))
-
 
             # save embeddings to disk
             for i in range(len(embs)):
@@ -281,5 +329,4 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
 
             for i in range(len(mean_rank_list)):
                 writer.writerow([params.embedding_size, params.batch_size, params.learning_rate, num_skips, num_sampled,
-                                 batch_size_sg, fold, i, mean_rank_list[i], hits_10_list[i], gradients_E[i],
-                                 gradients_R[i], loss_list[i]])
+                                 batch_size_sg, fold, i, mean_rank_list[i], hits_10_list[i], loss_list[i]])
