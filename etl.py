@@ -118,16 +118,20 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
             fe_or_module = np.unique(data[data[message_column] == msg][module_column])[0]
             fe_or_module_id = mod_dict[fe_or_module]
             fe_or_module = fe_or_module.replace('odule', '').replace(' ', '')
-        ont.add((URIRef(amberg_ns['Event-'+str(id)]), RDF.type, base_ns['Event']))
-        ont.add((URIRef(amberg_ns['Event-'+str(id)]), occursOn, amberg_ns[fe_or_module]))
+        ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
+        ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module]))
+        ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
         entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
         entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
         if "Stau" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
+            ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
         elif "Achse" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
+            ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
         elif "F?llstand" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
+            ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
     return ont, entity_uri_to_data_id
 
 
@@ -150,49 +154,91 @@ def get_unique_entities(data):
     return unique_msgs_dict, unique_variants_dict, unique_modules_dict, unique_fes_dict
 
 
-path = "/home/nether-nova/Documents/Amberg Events/test_data/"
-max_events = 5000
-window_size = 3
-df = read_data(path, max_events)
-fe_df = pd.read_csv(path + "messages_to_fe.txt")
-merged = pd.merge(df, fe_df, on="Meldetext")
-# merged[module_column] = merged["FE"]    # replace module column with FE-Module
-merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
-merged = merged.sort_index(ascending=True)
-# TODO: filter out noisy events
-unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
-# includes relations
-ontology = read_ontology(path + "./amberg_inferred.xml")
-print "Read %d number of triples" % len(ontology)
-ont, uri_to_id = update_ontology(ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
-print "Number of triples: ", len(ont)
-for k in uri_to_id:
-    print k, [t for t in ont.triples((URIRef(k), None, None))]
+def get_messages_to_module(dataframe):
+    """
+    Get unique messages with modules as dataframe
+    :param dataframe:
+    :return:
+    """
+    dataframe = dataframe[[message_column, module_column]].drop_duplicates()
+    message_to_module = np.array(dataframe)
+    #message_to_module = pd.read_csv("/home/nether-nova/Documents/Amberg Events/test_data/unique_messages.txt", sep=",",
+    #                                header=None)
+    me2m = dict(zip(message_to_module[:, 0], message_to_module[:, 1]))
+    print me2m
+    return me2m
 
 
-def get_merged_dataframe(path, fe_file_name):
+def get_messages_to_fe(message_to_module_dict):
+    messages_to_fe = dict()
+    for message, module in message_to_module_dict.iteritems():
+        terms = message.split(' ')
+        for i, t in enumerate(terms):
+            t = t.replace(':', '').strip()
+            if t.startswith('FE'):
+                fe_num = None
+                last_char = None
+                if i < len(terms) - 1:
+                    try:
+                        fe_num = int(terms[i + 1])
+                    except ValueError:
+                        pass
+                try:
+                    last_char = int(t[-1])
+                except ValueError:
+                    pass
+                if fe_num and not last_char:
+                    t = t + str(fe_num)
+                messages_to_fe[message] = module.replace('odule', '').replace(' ', '') + '_' + t
+        if message not in messages_to_fe:
+            messages_to_fe[message] = module.replace('odule', '').replace(' ', '') + '_' + 'UNK-FE'
+    fe_to_index = dict()
+    for i, fe in enumerate(np.unique(messages_to_fe.values())):
+        fe_to_index[fe] = i
+
+    messages_to_fe_df = pd.DataFrame(zip(messages_to_fe.keys(), messages_to_fe.values()), columns=["Meldetext", "FE"])
+
+    print messages_to_fe_df.head(10)
+    messages_to_fe_df.to_csv("./test_data/messages_to_fe.csv", sep=",", quotechar='"')
+    reverse_messages_to_fe = dict(zip(messages_to_fe.values(), messages_to_fe.keys()))
+
+    return messages_to_fe_df
+
+
+# path = "/home/nether-nova/Documents/Amberg Events/test_data/"
+# max_events = 5000
+# window_size = 3
+# df = read_data(path, max_events)
+# fe_df = pd.read_csv(path + "messages_to_fe.txt")
+# merged = pd.merge(df, fe_df, on="Meldetext")
+# # merged[module_column] = merged["FE"]    # replace module column with FE-Module
+# merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
+# merged = merged.sort_index(ascending=True)
+# # TODO: filter out noisy events
+# unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
+# # includes relations
+# ontology = read_ontology(path + "./amberg_inferred.xml")
+# print "Read %d number of triples" % len(ontology)
+# ont, uri_to_id = update_ontology(ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
+# print "Number of triples: ", len(ont)
+# for k in uri_to_id:
+#     print k, [t for t in ont.triples((URIRef(k), None, None))]
+
+
+def get_merged_dataframe(path, max_events):
     df = read_data(path, max_events)
-    fe_df = pd.read_csv(path + fe_file_name)
+    message_to_module_dict = get_messages_to_module(df)
+    fe_df = get_messages_to_fe(message_to_module_dict)
     merged = pd.merge(df, fe_df, on="Meldetext")
+    # merged[module_column] = merged["FE"]    # replace module column with FE-Module
     merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
     merged = merged.sort_index(ascending=True)
     return merged
 
 
-def filter_dataframe(df, condition):
-    df = df.drop(df[condition].index)
-
-
-def binary_sequences(sequences, index, classification_event=None):
+def binary_sequences(sequences, index, unique_dict, classification_event=None):
     train = []
     labels = []
-    lookup_dict = None
-    if index == message_index:
-        lookup_dict = unique_msgs
-    elif index == variant_index:
-        lookup_dict = unique_vars
-    else:
-        lookup_dict = unique_mods
     for i, seq in enumerate(sequences):
         local_entities = [event[index] for event in seq]
         x = 0
@@ -201,32 +247,36 @@ def binary_sequences(sequences, index, classification_event=None):
             for j, m in enumerate(local_entities):
                 # what if multiple matches?
                 if m == classification_event:
-                    train.append(' '.join([str(lookup_dict[msg]) for msg in local_entities[x:j]]))
+                    train.append(' '.join([str(unique_dict[msg]) for msg in local_entities[x:j]]))
                     labels.append(1)
                     x = j + 1
                     hit = True
         if not hit:
-            train.append(' '.join([str(lookup_dict[msg]) for msg in local_entities]))
+            # append indices of entities as strings (needed for tf.VocabProcessor)
+            train.append(' '.join([str(unique_dict[entity]) for entity in local_entities]))
             labels.append(0)
     return train, labels
 
 
-def prepare_sequences(data_frame, file_name, index, classification_event='Dropping OEE'):
+def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size, classification_event='Dropping OEE'):
+    """
+    Dumps pickle for sequences and dictionary
+    :param data_frame:
+    :param file_name:
+    :param index:
+    :param classification_event:
+    :return:
+    """
     train_data = time_window(data_frame, window_size)
-    train, labels = binary_sequences(train_data, index, classification_event)
+    train, labels = binary_sequences(train_data, index, unique_dict, classification_event)
+    print "Preparing sequential data..."
     print train[0:10]
     print labels[0:10]
-    pickle.dump(train, open(path + file_name + ".pickle", "wb"))
-    pickle.dump(labels, open(path + file_name + "_labels.pickle", "wb"))
-    lookup_dict = None
-    if index == message_index:
-        lookup_dict = unique_msgs
-    elif index == variant_index:
-        lookup_dict = unique_vars
-    else:
-        lookup_dict = unique_mods
-    reverse_lookup = dict(zip(lookup_dict.values(), lookup_dict.keys()))
-    pickle.dump(reverse_lookup, open(path + file_name + "_dictionary.pickle", "wb"))
+    pickle.dump(train, open(path_to_file + ".pickle", "wb"))
+    pickle.dump(labels, open(path_to_file + "_labels.pickle", "wb"))
+    reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
+    # TODO: Is this needed somewhere?
+    pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
 
 
 def prepare_fe_log_file(file_name):
