@@ -5,7 +5,11 @@ from etl import update_ontology, prepare_sequences, message_index, get_merged_da
 from sklearn.manifold import TSNE
 import csv
 import itertools
-from model import TranslationEmbeddings, dot_similarity, trans, ident_entity, TransH, l2_similarity, RESCAL
+from model import dot_similarity, trans, ident_entity, l2_similarity
+from TransE import TransE
+from TransESq import TransESeq
+from TransH import TransH
+from RESCAL import RESCAL
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -237,7 +241,7 @@ def bernoulli_probs(ontology, relation_dictionary):
 
 
 class TranslationModels:
-    Trans_E, Trans_H, RESCAL = range(3)
+    Trans_E, Trans_H, RESCAL, Trans_E_seq = range(4)
 
 
 path_to_events = "./test_data_2/" # TODO: should be optional if no skipgram stuff
@@ -248,14 +252,14 @@ path_to_store_embeddings = "./test_data_2/"
 sequence_file_name = "train_sequences"
 
 # max_events = 5000
-max_events = 10000
+max_events = 20000
 # sequence window size in minutes
 window_size = 3
 merged = get_merged_dataframe(path_to_events, max_events)
-# TODO: filter out noisy events
 unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
 # includes relations
 g = read_ontology(path_to_kg)
+# TODO: read schema and add to ontology
 print "Read %d number of triples" % len(g)
 g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
 print "After update: %d Number of triples: " % len(g)
@@ -264,18 +268,18 @@ for k in ent_dict:
 ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
 
 # Hyper-Parameters
-model_type = TranslationModels.Trans_E
+model_type = TranslationModels.RESCAL
 bernoulli = True
-skipgram = True
+skipgram = False
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [140]    #[60, 100, 140, 180]
+param_dict['embedding_size'] = [50]    #[60, 100, 140, 180]
 param_dict['seq_data_size'] = [1.0]
 param_dict['batch_size'] = [32] #[32, 64, 128]
 param_dict['learning_rate'] = [1.0] #[0.5, 0.8, 1.0]
-param_dict['lambd'] = [0.0125, 0.1, 0.5]
+param_dict['lambd'] = [0.5]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-n_folds = 4  # 4
+n_folds = 1  # 4
 num_steps = 400
 test_proportion = 0.03
 fnsim = l2_similarity
@@ -284,7 +288,7 @@ rightop = ident_entity
 
 # SKIP Parameters
 if skipgram:
-    param_dict['num_skips'] = [3,4]   # [2, 4]
+    param_dict['num_skips'] = [3]   # [2, 4]
     param_dict['num_sampled'] = [7]  # [5, 9]
     param_dict['batch_size_sg'] = [128] # [128, 512]
     prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index, unique_msgs, window_size,
@@ -303,7 +307,6 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
         print "Batch size: ", params.batch_size
         for fold in xrange(n_folds):
             print "Fold: ", fold
-            # TODO: second (transformed) version of ontology
             # train_size, _ = slice_ontology(g, params.seq_data_size)
             # randomly reduce g
             g_test, g_train = slice_ontology(g, test_proportion)
@@ -336,7 +339,11 @@ with open("evaluation_kg_skipgram_parameters_3pct" ".csv", "wb") as csvfile:
             reverse_dictionary = dict(zip(unique_msgs.values(), unique_msgs.keys()))
 
             if model_type == TranslationModels.Trans_E:
-                model = TranslationEmbeddings(num_entities, num_relations, params.embedding_size, params.batch_size,
+                model = TransE(num_entities, num_relations, params.embedding_size, params.batch_size,
+                                               batch_size_sg, num_sampled, len(unique_msgs),
+                                               leftop, rightop, fnsim)
+            elif model_type == TranslationModels.Trans_E_seq:
+                model = TransESeq(num_entities, num_relations, params.embedding_size, params.batch_size,
                                                batch_size_sg, num_sampled, len(unique_msgs),
                                                leftop, rightop, fnsim)
             elif model_type == TranslationModels.Trans_H:

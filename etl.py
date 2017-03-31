@@ -83,11 +83,12 @@ def read_metadata(path):
 def read_ontology(path):
     """
 
-    :param path:
+    :param path:s
     :return:
     """
     g = ConjunctiveGraph()
     g.load(path)
+    # TODO: filter out noisy events (e.g. Literals)
     # remove not needed triples
     # for (s,p,o) in g.triples((None, None, None)):
     #     if p == URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'):
@@ -120,6 +121,7 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
             fe_or_module = fe_or_module.replace('odule', '').replace(' ', '')
         ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
         ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module]))
+        # TODO: if both entries -> occursOn Module and FE
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
         entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
         entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
@@ -213,8 +215,7 @@ def get_messages_to_fe(message_to_module_dict):
 # merged = pd.merge(df, fe_df, on="Meldetext")
 # # merged[module_column] = merged["FE"]    # replace module column with FE-Module
 # merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
-# merged = merged.sort_index(ascending=True)
-# # TODO: filter out noisy events
+# merged = merged.sort_index(ascending=True)s
 # unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
 # # includes relations
 # ontology = read_ontology(path + "./amberg_inferred.xml")
