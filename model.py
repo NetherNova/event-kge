@@ -363,10 +363,7 @@ class RecurrentEventEmbedding(EventEmbedding):
         super(RecurrentEventEmbedding, self).__init__(label, num_entities, 0, num_dim)
 
     def loss(self, lookup_entity, negative_entity, context_entities):
-        # cell = tf.nn.rnn_cell.BasicRNNCell(self.num_dim)
         cell = tf.nn.rnn_cell.LSTMCell(self.num_dim)
-        # context_embedding = tf.nn.embedding_lookup(self.W, context_entities)
-        # context_embedding =tf.unstack(context_embeddings)
         context_embedding = tf.pack(context_entities)
         context_embedding = tf.one_hot(context_embedding, 3)
         context_embedding = tf.unstack(context_embedding)
@@ -382,37 +379,83 @@ class RecurrentEventEmbedding(EventEmbedding):
 
 
 def skipgram_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
-        nce_weights = tf.Variable(
-            tf.truncated_normal([vocab_size, embedding_size],
+    nce_weights = tf.Variable(
+        tf.truncated_normal([vocab_size, embedding_size],
                                 stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-        nce_biases = tf.Variable(tf.zeros([vocab_size]))
+    nce_biases = tf.Variable(tf.zeros([vocab_size]))
 
-        skipgram_loss = tf.reduce_mean(
-            tf.nn.nce_loss(weights=nce_weights,
+    skipgram_loss = tf.reduce_mean(
+        tf.nn.nce_loss(weights=nce_weights,
                            biases=nce_biases,
                            labels=train_labels,
                            inputs=embed,
                            num_sampled=num_sampled,
                            num_classes=vocab_size,
                            remove_accidental_hits=True))
-        return skipgram_loss
+    return skipgram_loss
 
 
-def rank_triples_left_right(test_tg, scores_l, scores_r, left_ind, o_ind, right_ind):
+def ranking_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, right_ind):
     errl = []
     errr = []
     for i, (l, o, r) in enumerate(
             zip(left_ind, o_ind, right_ind)):
         # find those triples that have <*,o,r> and * != l
-        rmv_idx_l = [l_rmv for (l_rmv, rel, rhs) in test_tg.all_triples if
+        rmv_idx_l = [l_rmv for (l_rmv, rel, rhs) in filter_triples if
                      rel == o and r == rel and l_rmv != l]
         # *l* is the correct index
         scores_l[i, rmv_idx_l] = -np.inf
         errl += [np.argsort(np.argsort(-scores_l[i, :]))[l] + 1]
         # since index start at 0, best possible value is 1
-        rmv_idx_r = [r_rmv for (lhs, rel, r_rmv) in test_tg.all_triples if
+        rmv_idx_r = [r_rmv for (lhs, rel, r_rmv) in filter_triples if
                      rel == o and lhs == l and r_rmv != r]
         # *l* is the correct index
         scores_r[i, rmv_idx_r] = -np.inf
         errr += [np.argsort(np.argsort(-scores_r[i, :]))[r] + 1]
     return errl, errr
+
+
+class EarlyStoppingMonitor(object):
+    def __init__(self, saver, n_checks, path_to_model):
+        """
+        Keeps track of the best overall model
+        :sess: tf session
+        :param saver: tf.train.saver
+        :param n_checks: validate improvement over last n_checks
+        :path_to_model: filesystem path to store model
+        """
+        self.perf_ckpts = []
+        self.n_checks = n_checks
+        self.path_to_model = path_to_model
+        self.saver = saver
+        self.best_value = np.inf
+
+    def get_best_model(self, sess):
+        return
+
+    def check_performance(self, value, sess):
+        """
+        check current *value* against last_n ones
+        :param value:
+        :param sess: tf session to save
+        :return: True if stopping criterion is met, False otherwise
+        """
+        if len(self.perf_ckpts) < self.n_checks:
+            self.perf_ckpts.append(value)
+            return False
+        elif value < self.best_value:
+            self.best_value = value
+            self.saver.save(sess, self.path_to_model)
+            self.perf_ckpts.append(value)
+            return False
+        else:
+            early_stop = True
+            last_n_values = self.perf_ckpts[-self.n_checks]
+            for v in last_n_values:
+                if v > value:
+                    # if at least one value was worse than current one
+                    early_stop = False
+                    self.perf_ckpts.append(value)
+                else:
+                    early_stop = True
+            return early_stop

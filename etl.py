@@ -201,7 +201,7 @@ def get_messages_to_fe(message_to_module_dict):
     messages_to_fe_df = pd.DataFrame(zip(messages_to_fe.keys(), messages_to_fe.values()), columns=["Meldetext", "FE"])
 
     print messages_to_fe_df.head(10)
-    messages_to_fe_df.to_csv("./test_data/messages_to_fe.csv", sep=",", quotechar='"')
+    messages_to_fe_df.to_csv("./test_data/messages_to_fe.txt", sep=",", quotechar='"')
     reverse_messages_to_fe = dict(zip(messages_to_fe.values(), messages_to_fe.keys()))
 
     return messages_to_fe_df
@@ -280,7 +280,7 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
 
 
-def prepare_fe_log_file(file_name):
+def prepare_fe_log_file(merged, file_name):
     sequences = time_window(merged, 3, include_time=True)
     with open(file_name, "wb") as csvfile:
         writer = csv.writer(csvfile)

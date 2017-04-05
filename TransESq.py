@@ -1,14 +1,15 @@
 import tensorflow as tf
 import numpy as np
-from model import l2_similarity, dot, trans, ident_entity, max_margin, dot_similarity, skipgram_loss, rank_triples_left_right
+from model import l2_similarity, dot, trans, ident_entity, max_margin, dot_similarity, skipgram_loss, ranking_error_triples
 import pickle
 
 
 class TransESeq(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, leftop, rightop, fnsim, supp_event_embeddings=None, sub_prop_constr=None):
+                 vocab_size, leftop, rightop, fnsim, supp_event_embeddings=None, sub_prop_constr=None,
+                 init_lr=1.0, skipgram=True, lambd=None):
         """
-        Implements translation-based triplet scoring from negative sampling (TransE)
+        TransE plus linear transformation of sequential embeddings
         :param num_entities:
         :param num_relations:
         :param embedding_size:
@@ -32,196 +33,160 @@ class TransESeq(object):
         self.fnsim = fnsim
         self.supp_event_embeddings = supp_event_embeddings
         self.sub_prop_constr = sub_prop_constr
+        self.init_lr = init_lr
+        self.skipgram = skipgram
+        self.lambd = lambd
 
     def rank_left_idx(self, test_inpr, test_o, test_w, ent_embs, v_embs):
-        lhs = ent_embs  # [num_entities, d]
-        rell = test_o  # [num_test, d]
-        rhs = ent_embs[test_inpr]  # [num_test, d]
+        lhs = ent_embs
+        rell = test_o
+        rhs = ent_embs[test_inpr]
         wr = test_w
         result = np.zeros((rhs.shape[0], lhs.shape[0]))
         for i in xrange(rhs.shape[0]):
-            proj_rhs = rhs[i] - np.dot(rhs[i], np.transpose(wr[i])) * wr[i]
+            proj_rhs = rhs[i] + np.dot(v_embs[i], np.transpose(wr[i]))
+            #proj_rhs = (rhs[i] + np.dot(v_embs[i], np.transpose(wr[i])) * wr[i]) / 2
             for j in xrange(lhs.shape[0]):
-                proj_lhs = lhs[j] - np.dot(lhs[j], np.transpose(wr[i])) * wr[i]
+                proj_lhs = lhs[j] + np.dot(v_embs[j], np.transpose(wr[i]))
+                #proj_lhs = (lhs[j] + np.dot(v_embs[j], np.transpose(wr[i])) * wr[i]) / 2
                 temp_diff = (proj_lhs + rell[i]) - proj_rhs
                 result[i][j] = -np.sqrt(np.sum(temp_diff ** 2))
         return result
 
     def rank_right_idx(self, test_inpl, test_o, test_w, ent_embs, v_embs):
-        rhs = ent_embs  # [num_entities, d]
-        rell = test_o  # [num_test, d]
-        lhs = ent_embs[test_inpl]  # [num_test, d]
+        rhs = ent_embs
+        rell = test_o
+        lhs = ent_embs[test_inpl]
         wr = test_w
         result = np.zeros((lhs.shape[0], rhs.shape[0]))
         for i in xrange(lhs.shape[0]):
-            proj_lhs = lhs[i] - np.dot(lhs[i], np.transpose(wr[i])) * wr[i]
+            proj_lhs = lhs[i] + np.dot(v_embs[i], np.transpose(wr[i]))
+            #proj_lhs = (lhs[i] + np.dot(v_embs[i], np.transpose(wr[i])) * wr[i]) / 2
             proj_lhs = proj_lhs + rell[i]
             for j in xrange(rhs.shape[0]):
-                proj_rhs = rhs[j] - np.dot(rhs[j], np.transpose(wr[i])) * wr[i]
+                proj_rhs = rhs[j] + np.dot(v_embs[j], np.transpose(wr[i]))
+                #proj_rhs = (rhs[j] + np.dot(v_embs[j], np.transpose(wr[i])) * wr[i]) / 2
                 temp_diff = proj_lhs - proj_rhs
                 result[i][j] = -np.sqrt(np.sum(temp_diff ** 2))
         return result
 
-    def run(self, tg, sg, test_tg, test_size, num_steps, init_lr=1.0, skipgram=True, store_embeddings=False, lambd=None):
-        print('Running Model')
-        graph = tf.Graph()
-        with graph.as_default():
-            # Translation Model initialisation
-            w_bound = np.sqrt(6. / self.embedding_size)
-            self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
-                                                   maxval=w_bound))
-            self.V = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
-                                                   maxval=w_bound))
-            self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
-                                                   maxval=w_bound))
-            self.W = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
-                                                   maxval=w_bound))
+    def create_graph(self):
+        print('Building Model')
+        # Translation Model initialisation
+        w_bound = np.sqrt(6. / self.embedding_size)
+        self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
+                                               maxval=w_bound))
+        self.V = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
+                                               maxval=w_bound))
+        # TODO: set V entries to 0-vector for unused ones
+        self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
+                                               maxval=w_bound))
+        self.W = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size, self.embedding_size),
+                                               minval=-w_bound,
+                                               maxval=w_bound))
+        # TODO: divide in to two matrices Wr_t and Wr_h (then we do not have to modife r)
+        # i.e. decide if head or tail entity are influced by sequential representation in this relation
 
-            normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
-            normalize_V = self.V.assign(tf.nn.l2_normalize(self.V, 1))
-            normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
+        self.normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
+        # TODO: do not normalize V, but <v, wr> as below
+        # normalize_V = self.V.assign(tf.nn.l2_normalize(self.V, 1))
+        self.normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
 
-            inpr = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhs")
-            inpl = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhs")
-            inpo = tf.placeholder(tf.int32, [self.batch_size_kg], name="rell")
+        self.inpr = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhs")
+        self.inpl = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhs")
+        self.inpo = tf.placeholder(tf.int32, [self.batch_size_kg], name="rell")
 
-            inprn = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhs")
-            inpln = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhs")
-            inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="rell")
+        self.inprn = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhsn")
+        self.inpln = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhsn")
+        self.inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="relln")
 
-            test_inpr = tf.placeholder(tf.int32, [test_size], name="test_rhs")
-            test_inpl = tf.placeholder(tf.int32, [test_size], name="test_lhs")
-            test_inpo = tf.placeholder(tf.int32, [test_size], name="test_rell")
+        self.test_inpr = tf.placeholder(tf.int32, [None], name="test_rhs")
+        self.test_inpl = tf.placeholder(tf.int32, [None], name="test_lhs")
+        self.test_inpo = tf.placeholder(tf.int32, [None], name="test_rell")
 
-            wr = tf.nn.embedding_lookup(self.W, inpo)
-            lhs = tf.nn.embedding_lookup(self.E, inpl)
-            lhs = lhs + dot(tf.nn.embedding_lookup(self.V, inpl), wr) * wr
-            rhs = tf.nn.embedding_lookup(self.E, inpr)
-            rhs = rhs + dot(tf.nn.embedding_lookup(self.V, inpr), wr) * wr
-            rell = tf.nn.embedding_lookup(self.R, inpo)
-            relr = tf.nn.embedding_lookup(self.R, inpo)
+        wr = tf.nn.embedding_lookup(self.W, self.inpo)
+        lhs = tf.nn.embedding_lookup(self.E, self.inpl)
+        v_lhs = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpl), 1)
+        #v_lhs = tf.nn.embedding_lookup(self.V, inpl)
+        lhs = lhs + tf.reduce_sum(tf.mul(v_lhs, wr), 2)
+        #lhs = (lhs + dot(v_lhs, wr) * wr) / 2
 
-            wrn = tf.nn.embedding_lookup(self.W, inpon)
-            lhsn = tf.nn.embedding_lookup(self.E, inpln)
-            lhs = lhs + dot(tf.nn.embedding_lookup(self.V, inpl), wrn) * wrn
-            rhsn = tf.nn.embedding_lookup(self.E, inprn)
-            rhsn = rhsn + dot(tf.nn.embedding_lookup(self.V, inprn), wrn) * wrn
-            relln = tf.nn.embedding_lookup(self.R, inpon)
-            relrn = tf.nn.embedding_lookup(self.R, inpon)
+        rhs = tf.nn.embedding_lookup(self.E, self.inpr)
+        v_rhs = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpr), 1)
+        #v_rhs = tf.nn.embedding_lookup(self.V, inpr)
+        rhs = rhs + tf.reduce_sum(tf.mul(v_rhs, wr), 2)
+        #rhs = (rhs + dot(v_rhs, wr) * wr) / 2
 
-            if self.fnsim == dot_similarity:
-                simi = tf.diag_part(self.fnsim(self.leftop(lhs, rell), tf.transpose(self.rightop(rhs, relr)),
-                                               broadcast=False))
-                simin = tf.diag_part(self.fnsim(self.leftop(lhsn, relln), tf.transpose(self.rightop(rhsn, relrn)),
-                                                broadcast=False))
-            else:
-                simi = self.fnsim(self.leftop(lhs, rell), self.rightop(rhs, relr), broadcast=False)
-                simin = self.fnsim(self.leftop(lhsn, relln), self.rightop(rhsn, relrn), broadcast=False)
+        rell = tf.nn.embedding_lookup(self.R, self.inpo)
+        relr = tf.nn.embedding_lookup(self.R, self.inpo)
 
-            kg_loss = max_margin(simi, simin)
+        wrn = tf.nn.embedding_lookup(self.W, self.inpon)
+        lhsn = tf.nn.embedding_lookup(self.E, self.inpln)
+        v_lhsn = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpln), 1)
+        #v_lhsn = tf.nn.embedding_lookup(self.V, inpln)
+        lhsn = lhsn + tf.reduce_sum(tf.mul(v_lhsn, wrn), 2)
+        #lhsn = (lhsn + dot(v_lhsn, wrn) * wrn) / 2
 
-            if self.sub_prop_constr:
-                sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
-                sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
-                kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
+        rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
+        v_rhsn = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inprn), 1)
+        #v_rhsn = tf.nn.embedding_lookup(self.V, inprn)
+        rhsn = rhsn + tf.reduce_sum(tf.mul(v_rhsn, wrn), 2)
+        #rhsn = (rhsn + dot(v_rhsn, wrn) * wrn) / 2
 
-            # Skipgram Model
-            train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
-            train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+        relln = tf.nn.embedding_lookup(self.R, self.inpon)
+        relrn = tf.nn.embedding_lookup(self.R, self.inpon)
 
-            sg_embed = tf.nn.embedding_lookup(self.V, train_inputs)
+        if self.fnsim == dot_similarity:
+            simi = tf.diag_part(self.fnsim(self.leftop(lhs, rell), tf.transpose(self.rightop(rhs, relr)),
+                                           broadcast=False))
+            simin = tf.diag_part(self.fnsim(self.leftop(lhsn, relln), tf.transpose(self.rightop(rhsn, relrn)),
+                                            broadcast=False))
+        else:
+            simi = self.fnsim(self.leftop(lhs, rell), self.rightop(rhs, relr), broadcast=False)
+            simin = self.fnsim(self.leftop(lhsn, relln), self.rightop(rhsn, relrn), broadcast=False)
 
-            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, train_labels)
+        reg_l = tf.reduce_sum(tf.mul(v_lhs, wr), 2)
+        reg_r = tf.reduce_sum(tf.mul(v_rhs, wr), 2)
+        reg_l = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(reg_l ** 2, axis=1)) - 1))
+        reg_r = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(reg_r ** 2, axis=1)) - 1))
 
-            if skipgram:
-                loss = kg_loss + sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
-            else:
-                loss = kg_loss
-            global_step = tf.Variable(0, trainable=False)
-            starter_learning_rate = init_lr
-            # tf.train.exponential_decay(starter_learning_rate, global_step, 10, 0.98, staircase=True)
-            learning_rate = tf.constant(starter_learning_rate)
-            # grads_E = tf.reduce_mean(tf.gradients(loss, self.E)[0])
-            # grads_R = tf.reduce_mean(tf.gradients(loss, self.R)[0])
+        kg_loss = max_margin(simi, simin) + self.lambd * (reg_l + reg_r)
 
-            optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(loss)
+        if self.sub_prop_constr:
+            sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
+            sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
+            kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
 
-            ranking_error_l = self.rank_left_idx(test_inpr, test_inpo)
-            ranking_error_r = self.rank_right_idx(test_inpl, test_inpo)
+        # Skipgram Model
+        self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+        self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
 
-        with tf.Session(graph=graph) as session:
-            tf.global_variables_initializer().run()
-            print('Initialized')
-            average_loss = 0
-            eval_step_size = 10
-            best_hits = -np.inf
-            best_rank = np.inf
-            mean_rank_list = []
-            hits_10_list = []
-            loss_list = []
+        # In this model we put the extra embeddings into skipgram, not E
+        sg_embed = tf.nn.embedding_lookup(self.V, self.train_inputs)
 
-            # Initialize some / event entities with supplied embeddings
-            if self.supp_event_embeddings:
-                w_bound = np.sqrt(6. / self.embedding_size)
-                initE = np.random.uniform((len(self.vocab_size), self.embedding_size), minval=-w_bound, maxval=w_bound)
-                print("Load supplied embeddings")
-                with open(self.self.supp_event_embeddings, "rb") as f:
-                    supplied_embeddings = pickle.load(f)
-                    supplied_dict = supplied_embeddings.get_dictionary()
-                    for word, id in supplied_dict.iteritems():
-                        initE[id] = supplied_embeddings.get_embeddings()[id]
-                session.run(self.E.assign(initE))
+        sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
 
-            if store_embeddings:
-                entity_embs = []
-                relation_embs = []
-            for b in range(1, num_steps + 1):
-                batch_pos, batch_neg = tg.next()
-                test_batch_pos, _ = test_tg.next()
-                batch_x, batch_y = sg.next()
-                batch_y = np.array(batch_y).reshape((self.batch_size_sg, 1))
-                session.run([normalize_E, normalize_R, normalize_V])
-                # calculate valid indices for scoring
-                feed_dict = {inpl: batch_pos[1, :], inpr: batch_pos[0, :], inpo: batch_pos[2, :],
-                             inpln: batch_neg[1, :], inprn: batch_neg[0, :], inpon: batch_neg[2, :],
-                             train_inputs: batch_x, train_labels: batch_y,
-                             global_step : b
-                             }
-                _, l = session.run([optimizer, loss], feed_dict=feed_dict)
+        if self.skipgram:
+            self.loss = kg_loss + sg_loss
+        else:
+            self.loss = kg_loss
+        self.global_step = tf.Variable(0, trainable=False)
+        starter_learning_rate = self.init_lr
+        learning_rate = tf.constant(starter_learning_rate)
 
-                average_loss += l
-                if b % eval_step_size == 0:
-                    feed_dict = {test_inpl: test_batch_pos[1, :], test_inpo: test_batch_pos[2, :],
-                                 test_inpr: test_batch_pos[0, :]}
-                    scores_l, scores_r = session.run([ranking_error_l, ranking_error_r], feed_dict=feed_dict)
+        self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
-                    errl, errr = rank_triples_left_right(test_tg, scores_l, scores_r, test_batch_pos[1, :],
-                                             test_batch_pos[2, :], test_batch_pos[0, :])
+        self.ranking_test_inpo = tf.nn.embedding_lookup(self.R, self.test_inpo)
+        self.ranking_test_inpw = tf.nn.embedding_lookup(self.W, self.test_inpo)
 
-                    hits_10 = np.mean(np.asarray(errl + errr) <= 10) * 100
-                    mean_rank = np.mean(np.asarray(errl + errr))
-                    mean_rank_list.append(mean_rank)
-                    hits_10_list.append(hits_10)
+    def post_ops(self):
+        return [self.normalize_E, self.normalize_R]
 
-                    if best_hits < hits_10:
-                        best_hits = hits_10
-                    if best_rank > mean_rank:
-                        best_rank = mean_rank
+    def train(self):
+        return [self.optimizer, self.loss]
 
-                    if b > 0:
-                        average_loss = average_loss / eval_step_size
-                    loss_list.append(average_loss)
+    def assign_initial(self, init_embeddings):
+        return self.V.assign(init_embeddings)
 
-                    if store_embeddings:
-                        entity_embs.append(session.run(self.E))
-                        relation_embs.append(session.run(self.R))
-
-                    # The average loss is an estimate of the loss over the last eval_step_size batches.
-                    print('Average loss at step %d: %f' % (b, average_loss))
-                    print "Hits10: ", hits_10
-                    print "MeanRank: ", mean_rank
-                    average_loss = 0
-                if not store_embeddings:
-                    entity_embs = [session.run(self.E)]
-                    relation_embs = [session.run(self.R)]
-            return entity_embs, relation_embs, best_hits, best_rank, mean_rank_list, hits_10_list, loss_list
+    def variables(self):
+        return [self.E, self.R, self.W, self.V]
