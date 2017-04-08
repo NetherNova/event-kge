@@ -6,7 +6,7 @@ import pickle
 
 class TransH(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, supp_event_embeddings=None, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
+                 vocab_size, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransH)
         :param num_entities:
@@ -24,24 +24,43 @@ class TransH(object):
         self.num_sampled = num_sampled
         self.batch_size_kg = batch_size_kg
         self.batch_size_sg = batch_size_sg
-        self.supp_event_embeddings = supp_event_embeddings
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.skipgram = skipgram
         self.lambd = lambd
 
-    def rank_left_idx(self, test_inpr, test_o, test_w, ent_embs):
+    def rank_left_idx(self, test_inpr, test_o, test_w, ent_embs, cache=True):
         lhs = ent_embs # [num_entities, d]
         rell = test_o  # [num_test, d]
         rhs = ent_embs[test_inpr]  # [num_test, d]
         wr = test_w
-        result = np.zeros((rhs.shape[0], lhs.shape[0]))
+        if cache:
+            cache_rhs = {}
+            cache_result = {}
+        result = np.zeros((rhs.shape[0], lhs.shape[0]), dtype=np.float16)
         for i in xrange(rhs.shape[0]):
-            proj_rhs = rhs[i] - np.dot(rhs[i], np.transpose(wr[i])) * wr[i]
+            if cache:
+                if test_inpr[i] in cache_rhs:
+                    proj_rhs = cache_rhs[test_inpr[i]]
+                else:
+                    proj_rhs = rhs[i] - np.dot(rhs[i], np.transpose(wr[i])) * wr[i]
+                    cache_rhs[test_inpr[i]] = proj_rhs
+            else:
+                proj_rhs = rhs[i] - np.dot(rhs[i], np.transpose(wr[i])) * wr[i]
             for j in xrange(lhs.shape[0]):
-                proj_lhs = lhs[j] - np.dot(lhs[j], np.transpose(wr[i])) * wr[i]
-                temp_diff = (proj_lhs + rell[i]) - proj_rhs
-                result[i][j] = -np.sqrt(np.sum(temp_diff**2))
+                if cache:
+                    key = str(test_inpr[i]) + "-" + str(j)
+                    if key in cache_result:
+                        result[i][j] = cache_result[key]
+                    else:
+                        proj_lhs = lhs[j] - np.dot(lhs[j], np.transpose(wr[i])) * wr[i]
+                        temp_diff = (proj_lhs + rell[i]) - proj_rhs
+                        result[i][j] = -np.sqrt(np.sum(temp_diff**2))
+                        cache_result[key] = result[i][j]
+                else:
+                    proj_lhs = lhs[j] - np.dot(lhs[j], np.transpose(wr[i])) * wr[i]
+                    temp_diff = (proj_lhs + rell[i]) - proj_rhs
+                    result[i][j] = -np.sqrt(np.sum(temp_diff ** 2))
         return result
 
     def rank_right_idx(self, test_inpl, test_o, test_w, ent_embs):
@@ -124,16 +143,16 @@ class TransH(object):
 
         sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
 
-        sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
-
         if self.skipgram:
+            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
             self.loss = kg_loss + sg_loss
         else:
             self.loss = kg_loss
-            self.global_step = tf.Variable(0, trainable=False)
+        self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
         learning_rate = tf.constant(starter_learning_rate)
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
+
         self.ranking_test_inpo = tf.nn.embedding_lookup(self.R, self.test_inpo)
         self.ranking_test_inpw = tf.nn.embedding_lookup(self.W, self.test_inpo)
 

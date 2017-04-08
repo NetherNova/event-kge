@@ -42,10 +42,6 @@ def l1_similarity(x, y):
     return - tf.reduce_sum(tf.abs(x - y))
 
 
-def rescal_similarity(x, y):
-    pass
-
-
 def trans(x, y):
     return x+y
 
@@ -55,9 +51,12 @@ def ident_entity(x, y):
 
 
 def max_margin(pos, neg, marge=1.0):
-    cost = 1. - pos + neg
+    cost = marge - pos + neg
     return tf.reduce_mean(tf.maximum(0., cost))
 
+
+def rescal_similarity():
+    pass
 
 def normalize(W):
     return W / tf.expand_dims(tf.sqrt(tf.reduce_sum(W ** 2, axis=1)), 1)

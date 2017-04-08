@@ -33,6 +33,36 @@ class TransE(object):
         self.init_lr = init_lr
         self.skipgram = skipgram
 
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
+        lhs = ent_embs
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        rhs = ent_embs[test_inpr]
+        unique_lhs = lhs[:, np.newaxis] + unique_rell
+        results = np.zeros((len(test_inpr), ent_embs.shape[0]))
+        for i in range(len(unique_rell)):
+            rhs_inds = np.argwhere(rell_mapping == i)[:,0]
+            tmp_lhs = unique_lhs[:, i, :]
+            results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
+        # unique_result = -np.sqrt(np.square((lhs[:, np.newaxis] + unique_rell) - rhs).sum(axis=2)).transpose()
+        return results
+
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, cache=True):
+        rhs = ent_embs
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        unique_rhs = unique_rell - rhs[:, np.newaxis]
+        lhs = ent_embs[test_inpl]  # [num_test, d]
+        results = np.zeros((len(test_inpl), ent_embs.shape[0]))
+        for i in range(len(unique_rell)):
+            lhs_inds = np.argwhere(rell_mapping == i)[:, 0]
+            tmp_rhs = unique_rhs[:, i, :]
+            results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
+        #result = -np.sqrt(np.square((lhs + rell) - rhs[:, np.newaxis]).sum(axis=2)).transpose()
+        return results
+
     def create_graph(self):
         print('Building Model')
         # Translation Model initialisation
@@ -102,10 +132,10 @@ class TransE(object):
 
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
-        self.ranking_error_l = rank_left_fn_idx(self.fnsim, self.E, self.R, self.leftop, self.rightop, self.test_inpr,
-                                                self.test_inpo)
-        self.ranking_error_r = rank_right_fn_idx(self.fnsim, self.E, self.R, self.leftop, self.rightop, self.test_inpl,
-                                                 self.test_inpo)
+        # self.ranking_error_l = rank_left_fn_idx(self.fnsim, self.E, self.R, self.leftop, self.rightop, self.test_inpr,
+        #                                         self.test_inpo)
+        # self.ranking_error_r = rank_right_fn_idx(self.fnsim, self.E, self.R, self.leftop, self.rightop, self.test_inpl,
+        #                                          self.test_inpo)
 
     def assign_initial(self, init_embeddings):
         return self.E.assign(init_embeddings)

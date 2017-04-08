@@ -6,7 +6,7 @@ import pickle
 
 class TransESeq(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, leftop, rightop, fnsim, supp_event_embeddings=None, sub_prop_constr=None,
+                 vocab_size, leftop, rightop, fnsim, sub_prop_constr=None,
                  init_lr=1.0, skipgram=True, lambd=None):
         """
         TransE plus linear transformation of sequential embeddings
@@ -31,7 +31,6 @@ class TransESeq(object):
         self.leftop = leftop
         self.rightop = rightop
         self.fnsim = fnsim
-        self.supp_event_embeddings = supp_event_embeddings
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.skipgram = skipgram

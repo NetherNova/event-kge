@@ -1,12 +1,11 @@
 import tensorflow as tf
 import numpy as np
-from model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, rescal_similarity, skipgram_loss, ranking_error_triples
-import pickle
+from model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, rescal_similarity
 
 
 class RESCAL(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, supp_event_embeddings=None, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
+                 vocab_size, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
         """
         RESCAL with max-margin loss (not Alternating least-squares)
         :param num_entities:
@@ -24,11 +23,45 @@ class RESCAL(object):
         self.num_sampled = num_sampled
         self.batch_size_kg = batch_size_kg
         self.batch_size_sg = batch_size_sg
-        self.supp_event_embeddings = supp_event_embeddings
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.skipgram = skipgram
         self.lambd = lambd
+
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
+        lhs = ent_embs
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        rhs = ent_embs[test_inpr]
+        unique_lhs = lhs[:, np.newaxis] + unique_rell
+        results = np.zeros((len(test_inpr), ent_embs.shape[0]))
+        for i in range(len(unique_rell)):
+            rhs_inds = np.argwhere(rell_mapping == i)[:,0]
+            tmp_lhs = unique_lhs[:, i, :]
+            results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
+        # unique_result = -np.sqrt(np.square((lhs[:, np.newaxis] + unique_rell) - rhs).sum(axis=2)).transpose()
+        # expanded_lhs = tf.expand_dims(expanded_lhs, 2) # [entity_size, 1, 1, d] # TODO: was ist zeile und was ist Spalte in rell?
+        # [entity_size, test_size, d]
+        # expanded_lhs = tf.reduce_sum(tf.mul(expanded_lhs, rell), 3) # TODO: which dim to reduce? 2 or 3
+        # [entity_size, test_size, d] * [test_size, d]
+        # simi = tf.nn.sigmoid(tf.transpose(tf.reduce_sum(tf.mul(expanded_lhs, rhs), 2)))
+        return results
+
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, cache=True):
+        rhs = ent_embs
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        unique_rhs = unique_rell - rhs[:, np.newaxis]
+        lhs = ent_embs[test_inpl]  # [num_test, d]
+        results = np.zeros((len(test_inpl), ent_embs.shape[0]))
+        for i in range(len(unique_rell)):
+            lhs_inds = np.argwhere(rell_mapping == i)[:, 0]
+            tmp_rhs = unique_rhs[:, i, :]
+            results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
+        #result = -np.sqrt(np.square((lhs + rell) - rhs[:, np.newaxis]).sum(axis=2)).transpose()
+        return results
 
     def create_graph(self):
         print('Building Model')
@@ -68,7 +101,7 @@ class RESCAL(object):
 
         simi = tf.nn.sigmoid(tf.reduce_sum(tf.mul(lhs, rhs), 1))
         simin = tf.nn.sigmoid(tf.reduce_sum(tf.mul(lhsn, rhsn), 1))
-        kg_loss = max_margin(simi, simin) #+ lambd * (tf.nn.l2_loss(self.E) + tf.nn.l2_loss(self.R))
+        kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(self.E) + tf.nn.l2_loss(self.R))
 
         if self.sub_prop_constr:
             sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])

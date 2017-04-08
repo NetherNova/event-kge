@@ -80,14 +80,14 @@ def read_metadata(path):
     return meta_dict
 
 
-def read_ontology(path):
+def read_ontology(path, format='xml'):
     """
 
     :param path:s
     :return:
     """
     g = ConjunctiveGraph()
-    g.load(path)
+    g.load(path, format=format)
     # TODO: filter out noisy events (e.g. Literals)
     # remove not needed triples
     # for (s,p,o) in g.triples((None, None, None)):
@@ -95,6 +95,18 @@ def read_ontology(path):
     #         g.remove((s,p,o))
     #     if o == OWL["NamedIndividual"]:
     #         g.remove((s, p, o))
+    return g
+
+
+def load_text_file(path):
+    g = ConjunctiveGraph()
+    with open(path, "rb") as file:
+        for line in file:
+            s, p, o = line.split("\t")
+            s = s.strip()
+            p = p.strip()
+            o = o.strip()
+            g.add((URIRef("http://" + s), URIRef("http://" + p), URIRef("http://" + o)))
     return g
 
 
