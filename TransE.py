@@ -37,30 +37,28 @@ class TransE(object):
         lhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         rhs = ent_embs[test_inpr]
-        unique_lhs = lhs[:, np.newaxis] + unique_rell
+        unique_lhs = lhs[:, np.newaxis] + unique_rell   # TODO: move inside loop for less memory consumption
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
-        for i in range(len(unique_rell)):
-            rhs_inds = np.argwhere(rell_mapping == i)[:,0]
-            tmp_lhs = unique_lhs[:, i, :]
+        for r, i in enumerate(unique_inpo):
+            rhs_inds = np.argwhere(test_inpo == i)[:,0]
+            tmp_lhs = unique_lhs[:, r, :]
             results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
-        # unique_result = -np.sqrt(np.square((lhs[:, np.newaxis] + unique_rell) - rhs).sum(axis=2)).transpose()
         return results
 
     def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, cache=True):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         unique_rhs = unique_rell - rhs[:, np.newaxis]
         lhs = ent_embs[test_inpl]  # [num_test, d]
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
-        for i in range(len(unique_rell)):
-            lhs_inds = np.argwhere(rell_mapping == i)[:, 0]
-            tmp_rhs = unique_rhs[:, i, :]
+        for r, i in enumerate(unique_inpo):
+            lhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            tmp_rhs = unique_rhs[:, r, :]
             results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
-        #result = -np.sqrt(np.square((lhs + rell) - rhs[:, np.newaxis]).sum(axis=2)).transpose()
         return results
 
     def create_graph(self):

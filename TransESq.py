@@ -6,7 +6,7 @@ import pickle
 
 class TransESeq(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, leftop, rightop, fnsim, sub_prop_constr=None,
+                 vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr=None,
                  init_lr=1.0, skipgram=True, lambd=None):
         """
         TransE plus linear transformation of sequential embeddings
@@ -31,43 +31,46 @@ class TransESeq(object):
         self.leftop = leftop
         self.rightop = rightop
         self.fnsim = fnsim
+        self.zero_elements = zero_elements
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.skipgram = skipgram
         self.lambd = lambd
 
-    def rank_left_idx(self, test_inpr, test_o, test_w, ent_embs, v_embs):
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, w_embs, v_embs):
         lhs = ent_embs
-        rell = test_o
         rhs = ent_embs[test_inpr]
-        wr = test_w
-        result = np.zeros((rhs.shape[0], lhs.shape[0]))
-        for i in xrange(rhs.shape[0]):
-            proj_rhs = rhs[i] + np.dot(v_embs[i], np.transpose(wr[i]))
-            #proj_rhs = (rhs[i] + np.dot(v_embs[i], np.transpose(wr[i])) * wr[i]) / 2
-            for j in xrange(lhs.shape[0]):
-                proj_lhs = lhs[j] + np.dot(v_embs[j], np.transpose(wr[i]))
-                #proj_lhs = (lhs[j] + np.dot(v_embs[j], np.transpose(wr[i])) * wr[i]) / 2
-                temp_diff = (proj_lhs + rell[i]) - proj_rhs
-                result[i][j] = -np.sqrt(np.sum(temp_diff ** 2))
-        return result
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        unique_wr = w_embs[unique_inpo]
 
-    def rank_right_idx(self, test_inpl, test_o, test_w, ent_embs, v_embs):
+        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+
+        results = np.zeros((len(test_inpr), ent_embs.shape[0]))
+        for r, i in enumerate(unique_rell):
+            rhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            proj_lhs = lhs + v_embs.dot(unique_wr[r])
+            proj_rhs = rhs[rhs_inds] + rhs[rhs_inds].dot(unique_wr[r])
+            lhs_tmp = (proj_lhs + unique_rell[r])
+            results[rhs_inds] = -np.square(lhs_tmp[:, np.newaxis] - proj_rhs).sum(axis=2).transpose()
+        return results
+
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, w_embs, v_embs):
         rhs = ent_embs
-        rell = test_o
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         lhs = ent_embs[test_inpl]
-        wr = test_w
-        result = np.zeros((lhs.shape[0], rhs.shape[0]))
-        for i in xrange(lhs.shape[0]):
-            proj_lhs = lhs[i] + np.dot(v_embs[i], np.transpose(wr[i]))
-            #proj_lhs = (lhs[i] + np.dot(v_embs[i], np.transpose(wr[i])) * wr[i]) / 2
-            proj_lhs = proj_lhs + rell[i]
-            for j in xrange(rhs.shape[0]):
-                proj_rhs = rhs[j] + np.dot(v_embs[j], np.transpose(wr[i]))
-                #proj_rhs = (rhs[j] + np.dot(v_embs[j], np.transpose(wr[i])) * wr[i]) / 2
-                temp_diff = proj_lhs - proj_rhs
-                result[i][j] = -np.sqrt(np.sum(temp_diff ** 2))
-        return result
+        unique_wr = w_embs[unique_inpo]
+
+        results = np.zeros((len(test_inpl), ent_embs.shape[0]))
+        for r, i in enumerate(unique_rell):
+            lhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            proj_lhs = lhs[lhs_inds] + v_embs[lhs_inds].dot(unique_wr[r])
+            proj_rhs = rhs + rhs.dot(unique_wr[r])
+            lhs_tmp = (proj_lhs + unique_rell[r])
+            results[lhs_inds] = -np.square(lhs_tmp - proj_rhs[:, np.newaxis]).sum(axis=2).transpose()
+        return results
 
     def create_graph(self):
         print('Building Model')
@@ -91,6 +94,8 @@ class TransESeq(object):
         # normalize_V = self.V.assign(tf.nn.l2_normalize(self.V, 1))
         self.normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
 
+        self.setzero_V = tf.scatter_update(self.V, self.zero_elements, tf.zeros((self.num_entities - self.vocab_size, self.embedding_size)))
+
         self.inpr = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhs")
         self.inpl = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhs")
         self.inpo = tf.placeholder(tf.int32, [self.batch_size_kg], name="rell")
@@ -104,8 +109,11 @@ class TransESeq(object):
         self.test_inpo = tf.placeholder(tf.int32, [None], name="test_rell")
 
         wr = tf.nn.embedding_lookup(self.W, self.inpo)
+        #wr = tf.Print(wr, [wr], "wr: ")
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
+
         v_lhs = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpl), 1)
+        #v_lhs = tf.Print(v_lhs, [v_lhs], "lhs: ")
         #v_lhs = tf.nn.embedding_lookup(self.V, inpl)
         lhs = lhs + tf.reduce_sum(tf.mul(v_lhs, wr), 2)
         #lhs = (lhs + dot(v_lhs, wr) * wr) / 2
@@ -146,10 +154,11 @@ class TransESeq(object):
 
         reg_l = tf.reduce_sum(tf.mul(v_lhs, wr), 2)
         reg_r = tf.reduce_sum(tf.mul(v_rhs, wr), 2)
-        reg_l = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(reg_l ** 2, axis=1)) - 1))
-        reg_r = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(reg_r ** 2, axis=1)) - 1))
 
-        kg_loss = max_margin(simi, simin) + self.lambd * (reg_l + reg_r)
+        #reg_l = tf.maximum(0., tf.reduce_sum(tf.reduce_sum(reg_l ** 2, axis=1) - 1))
+        #reg_r = tf.maximum(0., tf.reduce_sum(tf.reduce_sum(reg_r ** 2, axis=1) - 1))
+
+        kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(reg_l) + tf.nn.l2_loss(reg_r))
 
         if self.sub_prop_constr:
             sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
@@ -179,7 +188,7 @@ class TransESeq(object):
         self.ranking_test_inpw = tf.nn.embedding_lookup(self.W, self.test_inpo)
 
     def post_ops(self):
-        return [self.normalize_E, self.normalize_R]
+        return [self.normalize_E, self.normalize_R, self.setzero_V]
 
     def train(self):
         return [self.optimizer, self.loss]

@@ -29,54 +29,39 @@ class TransH(object):
         self.skipgram = skipgram
         self.lambd = lambd
 
-    def rank_left_idx(self, test_inpr, test_o, test_w, ent_embs, cache=True):
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, w_embs):
         lhs = ent_embs # [num_entities, d]
-        rell = test_o  # [num_test, d]
         rhs = ent_embs[test_inpr]  # [num_test, d]
-        wr = test_w
-        if cache:
-            cache_rhs = {}
-            cache_result = {}
-        result = np.zeros((rhs.shape[0], lhs.shape[0]), dtype=np.float16)
-        for i in xrange(rhs.shape[0]):
-            if cache:
-                if test_inpr[i] in cache_rhs:
-                    proj_rhs = cache_rhs[test_inpr[i]]
-                else:
-                    proj_rhs = rhs[i] - np.dot(rhs[i], np.transpose(wr[i])) * wr[i]
-                    cache_rhs[test_inpr[i]] = proj_rhs
-            else:
-                proj_rhs = rhs[i] - np.dot(rhs[i], np.transpose(wr[i])) * wr[i]
-            for j in xrange(lhs.shape[0]):
-                if cache:
-                    key = str(test_inpr[i]) + "-" + str(j)
-                    if key in cache_result:
-                        result[i][j] = cache_result[key]
-                    else:
-                        proj_lhs = lhs[j] - np.dot(lhs[j], np.transpose(wr[i])) * wr[i]
-                        temp_diff = (proj_lhs + rell[i]) - proj_rhs
-                        result[i][j] = -np.sqrt(np.sum(temp_diff**2))
-                        cache_result[key] = result[i][j]
-                else:
-                    proj_lhs = lhs[j] - np.dot(lhs[j], np.transpose(wr[i])) * wr[i]
-                    temp_diff = (proj_lhs + rell[i]) - proj_rhs
-                    result[i][j] = -np.sqrt(np.sum(temp_diff ** 2))
-        return result
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        unique_wr = w_embs[unique_inpo]
+        #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
 
-    def rank_right_idx(self, test_inpl, test_o, test_w, ent_embs):
+        results = np.zeros((len(test_inpr), ent_embs.shape[0]))
+        for r, i in enumerate(unique_rell):
+            rhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            proj_lhs = lhs - lhs.dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
+            proj_rhs = rhs[rhs_inds] - rhs[rhs_inds].dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
+            lhs_tmp = (proj_lhs + unique_rell[r])
+            results[rhs_inds] = -np.square(lhs_tmp[:, np.newaxis] - proj_rhs).sum(axis=2).transpose()
+        return results
+
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, w_embs):
         rhs = ent_embs  # [num_entities, d]
-        rell = test_o  # [num_test, d]
         lhs = ent_embs[test_inpl]  # [num_test, d]
-        wr = test_w
-        result = np.zeros((lhs.shape[0], rhs.shape[0]))
-        for i in xrange(lhs.shape[0]):
-            proj_lhs = lhs[i] - np.dot(lhs[i], np.transpose(wr[i])) * wr[i]
-            proj_lhs = proj_lhs + rell[i]
-            for j in xrange(rhs.shape[0]):
-                proj_rhs = rhs[j] - np.dot(rhs[j], np.transpose(wr[i])) * wr[i]
-                temp_diff = proj_lhs - proj_rhs
-                result[i][j] = -np.sqrt(np.sum(temp_diff**2))
-        return result
+        unique_inpo = np.unique(test_inpo)
+        unique_rell = r_embs[unique_inpo]
+        unique_wr = w_embs[unique_inpo]
+        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+
+        results = np.zeros((len(test_inpl), ent_embs.shape[0]))
+        for r, i in enumerate(unique_rell):
+            lhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            proj_lhs = lhs[lhs_inds] - lhs[lhs_inds].dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
+            proj_rhs = rhs - rhs.dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
+            lhs_tmp = (proj_lhs + unique_rell[r])
+            results[lhs_inds] = -np.square(lhs_tmp - proj_rhs[:, np.newaxis]).sum(axis=2).transpose()
+        return results
 
     def create_graph(self):
         print('Building Model')

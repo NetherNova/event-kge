@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, rescal_similarity
+from scipy.special import expit
 
 
 class RESCAL(object):
@@ -32,35 +33,26 @@ class RESCAL(object):
         lhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         rhs = ent_embs[test_inpr]
-        unique_lhs = lhs[:, np.newaxis] + unique_rell
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
-        for i in range(len(unique_rell)):
-            rhs_inds = np.argwhere(rell_mapping == i)[:,0]
-            tmp_lhs = unique_lhs[:, i, :]
-            results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
-        # unique_result = -np.sqrt(np.square((lhs[:, np.newaxis] + unique_rell) - rhs).sum(axis=2)).transpose()
-        # expanded_lhs = tf.expand_dims(expanded_lhs, 2) # [entity_size, 1, 1, d] # TODO: was ist zeile und was ist Spalte in rell?
-        # [entity_size, test_size, d]
-        # expanded_lhs = tf.reduce_sum(tf.mul(expanded_lhs, rell), 3) # TODO: which dim to reduce? 2 or 3
-        # [entity_size, test_size, d] * [test_size, d]
-        # simi = tf.nn.sigmoid(tf.transpose(tf.reduce_sum(tf.mul(expanded_lhs, rhs), 2)))
+        for r, i in enumerate(unique_rell):
+            unique_lhs_tmp = lhs.dot(unique_rell[r,:,:].transpose())
+            rhs_inds = np.argwhere(test_inpo == i)[:,0]
+            results[rhs_inds] = expit(rhs[rhs_inds].dot(unique_lhs_tmp.transpose()))
         return results
 
     def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, cache=True):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
-        unique_rhs = unique_rell - rhs[:, np.newaxis]
+        #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         lhs = ent_embs[test_inpl]  # [num_test, d]
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
-        for i in range(len(unique_rell)):
-            lhs_inds = np.argwhere(rell_mapping == i)[:, 0]
-            tmp_rhs = unique_rhs[:, i, :]
-            results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
-        #result = -np.sqrt(np.square((lhs + rell) - rhs[:, np.newaxis]).sum(axis=2)).transpose()
+        for r, i in enumerate(unique_inpo):
+            lhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            lhs_tmp = lhs[lhs_inds].dot(unique_rell[r,:,:].transpose())
+            results[lhs_inds] = expit(lhs_tmp.dot(rhs.transpose()))
         return results
 
     def create_graph(self):

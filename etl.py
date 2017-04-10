@@ -88,6 +88,8 @@ def read_ontology(path, format='xml'):
     """
     g = ConjunctiveGraph()
     g.load(path, format=format)
+    for s,p,o in g.triples((None, URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'), None)):
+        g.remove((s,p,o))
     # TODO: filter out noisy events (e.g. Literals)
     # remove not needed triples
     # for (s,p,o) in g.triples((None, None, None)):
