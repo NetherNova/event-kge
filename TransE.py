@@ -5,7 +5,8 @@ from model import dot_similarity, dot, max_margin, skipgram_loss, rank_left_fn_i
 
 class TransE(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, leftop, rightop, fnsim, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
+                 vocab_size, leftop, rightop, fnsim, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None,
+                 subclass_constr=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransE)
         :param num_entities:
@@ -32,6 +33,7 @@ class TransE(object):
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.skipgram = skipgram
+        self.subclass_constr = subclass_constr
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
         lhs = ent_embs
@@ -110,6 +112,11 @@ class TransE(object):
             sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
             sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
             kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
+
+        if len(self.subclass_constr) > 0:
+            subclass_types = tf.nn.embedding_lookup(self.E, self.subclass_constr[:,0])
+            supclass_types = tf.nn.embedding_lookup(self.E, self.subclass_constr[:,1])
+            kg_loss += tf.maximum(0., 1 - tf.reduce_sum(dot(subclass_types, supclass_types)))
 
         # Skipgram Model
         self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])

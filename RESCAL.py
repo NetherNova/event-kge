@@ -36,7 +36,7 @@ class RESCAL(object):
         # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         rhs = ent_embs[test_inpr]
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
-        for r, i in enumerate(unique_rell):
+        for r, i in enumerate(unique_inpo):
             unique_lhs_tmp = lhs.dot(unique_rell[r,:,:].transpose())
             rhs_inds = np.argwhere(test_inpo == i)[:,0]
             results[rhs_inds] = expit(rhs[rhs_inds].dot(unique_lhs_tmp.transpose()))

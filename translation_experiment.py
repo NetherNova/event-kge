@@ -210,17 +210,19 @@ def update_entity_relation_dictionary(ontology, ent_dict):
 
 def parse_axioms(ontology, ent_dict, rel_dict):
     schema_info = defaultdict(dict)
+    subclass_info = []
     for s,p,o in ontology.triples((None, None, None)):
-        if not unicode(s) in rel_dict:
-            continue
-        if p == RDFS.domain:
-            schema_info[rel_dict[unicode(s)]]["domain"] = ent_dict[unicode(o)]
-        elif p == RDFS.range:
-            schema_info[rel_dict[unicode(s)]]["range"] = ent_dict[unicode(o)]
-        elif p == RDFS.subPropertyOf:
-            schema_info[rel_dict[unicode(s)]]["sub"] = ent_dict[unicode(o)]
-            schema_info[rel_dict[unicode(o)]]["sup"] = ent_dict[unicode(s)]
-    return schema_info
+        if unicode(s) in rel_dict:
+            if p == RDFS.domain:
+                schema_info[rel_dict[unicode(s)]]["domain"] = ent_dict[unicode(o)]
+            elif p == RDFS.range:
+                schema_info[rel_dict[unicode(s)]]["range"] = ent_dict[unicode(o)]
+            elif p == RDFS.subPropertyOf:
+                schema_info[rel_dict[unicode(s)]]["sub"] = ent_dict[unicode(o)]
+                schema_info[rel_dict[unicode(o)]]["sup"] = ent_dict[unicode(s)]
+        if unicode(s) in ent_dict and unicode(o) in ent_dict and p == RDFS.subClassOf:
+            subclass_info.append((ent_dict[unicode(s)], ent_dict[unicode(o)]))
+    return schema_info, np.array(subclass_info)
 
 
 def plot_embeddings(embs, reverse_dictionary):
@@ -326,21 +328,24 @@ if not public_data:
     g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
     print "After update: %d Number of triples: " % len(g)
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
+    g_schema = read_ontology(path_to_schema)
+    #_, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
+    subclass_info = []
     vocab_size = len(unique_msgs)
 
 # Hyper-Parameters
-model_type = TranslationModels.RESCAL
+model_type = TranslationModels.Trans_H
 bernoulli = True
 skipgram = True
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [140]    # [60, 100, 140, 180]
+param_dict['embedding_size'] = [100]    # [60, 100, 140, 180]
 param_dict['seq_data_size'] = [1.0]
 param_dict['batch_size'] = [128]     # [32, 64, 128]
 param_dict['learning_rate'] = [1.0]     # [0.5, 0.8, 1.0]
-param_dict['lambd'] = [0.001]
+param_dict['lambd'] = [0.005]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-num_steps = 2000
+num_steps = 4000
 eval_step_size = 100
 test_proportion = 0.2
 validation_proportion = 0.1
@@ -352,8 +357,8 @@ sub_prop_constr = False
 
 # SKIP Parameters
 if skipgram:
-    param_dict['num_skips'] = [4]   # [2, 4]
-    param_dict['num_sampled'] = [9]     # [5, 9]
+    param_dict['num_skips'] = [3]   # [2, 4]
+    param_dict['num_sampled'] = [8]     # [5, 9]
     param_dict['batch_size_sg'] = [128]     # [128, 512]
     prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index, unique_msgs, window_size,
                       classification_event=None)
@@ -438,11 +443,11 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
         if model_type == TranslationModels.Trans_E:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, sub_prop_constr,
-                          params.learning_rate, skipgram, params.lambd]
+                          params.learning_rate, skipgram, params.lambd, subclass_info]
             model = TransE(*param_list)
         elif model_type == TranslationModels.Trans_E_seq:
             zero_elements = np.array([i for i in range(num_entities) if i not in unique_msgs.values()])
-            param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
+            param_list = [num_entities, num_relations, params.embedding_size, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr,
                           params.learning_rate, skipgram, params.lambd]
             model = TransESeq(*param_list)

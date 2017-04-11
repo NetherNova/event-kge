@@ -5,7 +5,7 @@ import pickle
 
 
 class TransESeq(object):
-    def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
+    def __init__(self, num_entities, num_relations, embedding_size, seq_embeddings_size, batch_size_kg, batch_size_sg, num_sampled,
                  vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr=None,
                  init_lr=1.0, skipgram=True, lambd=None):
         """
@@ -24,6 +24,7 @@ class TransESeq(object):
         self.num_entities = num_entities
         self.num_relations = num_relations
         self.embedding_size = embedding_size
+        self.seq_embeddings_size = seq_embeddings_size
         self.vocab_size = vocab_size
         self.num_sampled = num_sampled
         self.batch_size_kg = batch_size_kg
@@ -47,10 +48,10 @@ class TransESeq(object):
         # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
 
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
-        for r, i in enumerate(unique_rell):
+        for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:, 0]
-            proj_lhs = lhs + v_embs.dot(unique_wr[r])
-            proj_rhs = rhs[rhs_inds] + rhs[rhs_inds].dot(unique_wr[r])
+            proj_lhs = lhs + v_embs.dot(unique_wr[r].transpose())
+            proj_rhs = rhs[rhs_inds] + v_embs[rhs_inds].dot(unique_wr[r].transpose())
             lhs_tmp = (proj_lhs + unique_rell[r])
             results[rhs_inds] = -np.square(lhs_tmp[:, np.newaxis] - proj_rhs).sum(axis=2).transpose()
         return results
@@ -59,15 +60,15 @@ class TransESeq(object):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
+        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         lhs = ent_embs[test_inpl]
         unique_wr = w_embs[unique_inpo]
 
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
-        for r, i in enumerate(unique_rell):
+        for r, i in enumerate(unique_inpo):
             lhs_inds = np.argwhere(test_inpo == i)[:, 0]
-            proj_lhs = lhs[lhs_inds] + v_embs[lhs_inds].dot(unique_wr[r])
-            proj_rhs = rhs + rhs.dot(unique_wr[r])
+            proj_lhs = lhs[lhs_inds] + v_embs[lhs_inds].dot(unique_wr[r].transpose())
+            proj_rhs = rhs + v_embs.dot(unique_wr[r].transpose())
             lhs_tmp = (proj_lhs + unique_rell[r])
             results[lhs_inds] = -np.square(lhs_tmp - proj_rhs[:, np.newaxis]).sum(axis=2).transpose()
         return results
@@ -78,12 +79,12 @@ class TransESeq(object):
         w_bound = np.sqrt(6. / self.embedding_size)
         self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound))
-        self.V = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
+        self.V = tf.Variable(tf.random_uniform((self.num_entities, self.seq_embeddings_size), minval=-w_bound,
                                                maxval=w_bound))
         # TODO: set V entries to 0-vector for unused ones
         self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound))
-        self.W = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size, self.embedding_size),
+        self.W = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size, self.seq_embeddings_size),
                                                minval=-w_bound,
                                                maxval=w_bound))
         # TODO: divide in to two matrices Wr_t and Wr_h (then we do not have to modife r)
@@ -94,7 +95,8 @@ class TransESeq(object):
         # normalize_V = self.V.assign(tf.nn.l2_normalize(self.V, 1))
         self.normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
 
-        self.setzero_V = tf.scatter_update(self.V, self.zero_elements, tf.zeros((self.num_entities - self.vocab_size, self.embedding_size)))
+        self.setzero_V = tf.scatter_update(self.V, self.zero_elements, tf.zeros((self.num_entities - self.vocab_size,
+                                                                                 self.seq_embeddings_size)))
 
         self.inpr = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhs")
         self.inpl = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhs")
@@ -172,7 +174,7 @@ class TransESeq(object):
         # In this model we put the extra embeddings into skipgram, not E
         sg_embed = tf.nn.embedding_lookup(self.V, self.train_inputs)
 
-        sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
+        sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.seq_embeddings_size, self.train_labels)
 
         if self.skipgram:
             self.loss = kg_loss + sg_loss

@@ -38,7 +38,7 @@ class TransH(object):
         #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
 
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
-        for r, i in enumerate(unique_rell):
+        for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:, 0]
             proj_lhs = lhs - lhs.dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
             proj_rhs = rhs[rhs_inds] - rhs[rhs_inds].dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
@@ -55,7 +55,7 @@ class TransH(object):
         # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
 
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
-        for r, i in enumerate(unique_rell):
+        for r, i in enumerate(unique_inpo):
             lhs_inds = np.argwhere(test_inpo == i)[:, 0]
             proj_lhs = lhs[lhs_inds] - lhs[lhs_inds].dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
             proj_rhs = rhs - rhs.dot(unique_wr[r].transpose())[:, np.newaxis] * unique_wr[r]
