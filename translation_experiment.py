@@ -56,6 +56,43 @@ class SkipgramBatchGenerator(object):
         return batch_x, batch_y
 
 
+class PredictiveEventBatchGenerator(object):
+    def __init__(self, sequences, num_skips, batch_size):
+        """
+        center word is target, context should predict center word
+        :param sequences: list of lists of event entities
+        :param num_skips:  window left and right of target
+        :param batch_size:
+        """
+        self.sequences = sequences
+        self.sequence_index = 0
+        self.num_skips = num_skips
+        self.event_index = num_skips
+        self.batch_size = batch_size
+        self.prepare_target_skips()
+
+    def prepare_target_skips(self):
+        self.data_index = 0
+        self.data = []
+        for seq in self.sequences:
+            for target_ind in range(self.num_skips, len(seq)):
+                tmp_list = []
+                for i in range(-self.num_skips, 0):
+                    tmp_list.append(seq[target_ind + i])
+                self.data.append( (tmp_list, seq[target_ind]) )
+        np.random.shuffle(self.data)
+
+    def next(self):
+        batch_x = []
+        batch_y = []
+        for b in range(self.batch_size):
+            self.data_index = self.data_index % len(self.data)
+            batch_x.append(self.data[self.data_index][0])
+            batch_y.append(self.data[self.data_index][1])
+            self.data_index += 1
+        return batch_x, batch_y
+
+
 class TripleBatchGenerator(object):
     def __init__(self, triples, entity_dictionary, relation_dictionary, num_neg_samples, batch_size,
                  sample_negative=True, bern_probs=None):
@@ -313,9 +350,6 @@ train_path = "./wn18/train_reduced.txt"
 valid_path = "./wn18/valid_reduced.txt"
 test_path = "./wn18/test_reduced.txt"
 
-# TODO: read schema and add to ontology
-# TODO: variant co-occurrences consider
-
 if not public_data:
     max_events = 5000
     # sequence window size in minutes
@@ -329,24 +363,25 @@ if not public_data:
     print "After update: %d Number of triples: " % len(g)
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     g_schema = read_ontology(path_to_schema)
-    #_, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
-    subclass_info = []
+    _, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
+    #subclass_info = []
     vocab_size = len(unique_msgs)
 
 # Hyper-Parameters
-model_type = TranslationModels.Trans_H
+model_type = TranslationModels.Trans_E
 bernoulli = True
-skipgram = True
+skipgram = False
+concat = False
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [100]    # [60, 100, 140, 180]
+param_dict['embedding_size'] = [120]    # [60, 100, 140, 180]
 param_dict['seq_data_size'] = [1.0]
 param_dict['batch_size'] = [128]     # [32, 64, 128]
 param_dict['learning_rate'] = [1.0]     # [0.5, 0.8, 1.0]
 param_dict['lambd'] = [0.005]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-num_steps = 4000
-eval_step_size = 100
+num_steps = 1200
+eval_step_size = 50
 test_proportion = 0.2
 validation_proportion = 0.1
 fnsim = l2_similarity
@@ -356,10 +391,10 @@ supp_event_embeddings = None    #"./Embeddings/supplied_embeddings5k.pickle"
 sub_prop_constr = False
 
 # SKIP Parameters
-if skipgram:
-    param_dict['num_skips'] = [3]   # [2, 4]
-    param_dict['num_sampled'] = [8]     # [5, 9]
-    param_dict['batch_size_sg'] = [128]     # [128, 512]
+if skipgram or concat:
+    param_dict['num_skips'] = [5]   # [2, 4]
+    param_dict['num_sampled'] = [10]     # [5, 9]
+    param_dict['batch_size_sg'] = [64]     # [128, 512]
     prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index, unique_msgs, window_size,
                       classification_event=None)
 
@@ -380,6 +415,8 @@ if public_data:
     ent_dict = {}
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     vocab_size = 0
+    subclass_info = []
+    unique_msgs = {}
 else:
     g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion)
 train_size = len(g_train)
@@ -432,6 +469,15 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
             num_skips = params.num_skips
             sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
             num_sampled = params.num_sampled
+        elif concat:
+            sequence_file = pickle.load(open(path_to_store_sequences + sequence_file_name + ".pickle", "rb"))
+            sequences = [seq.split(' ') for seq in sequence_file]
+            sequence_file = None
+            # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
+            batch_size_sg = params.batch_size_sg
+            num_skips = params.num_skips
+            sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg)
+            num_sampled = params.num_sampled
         else:
             num_sampled = 1
             batch_size_sg = 0
@@ -443,7 +489,7 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
         if model_type == TranslationModels.Trans_E:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, sub_prop_constr,
-                          params.learning_rate, skipgram, params.lambd, subclass_info]
+                          params.learning_rate, skipgram, params.lambd, subclass_info, concat]
             model = TransE(*param_list)
         elif model_type == TranslationModels.Trans_E_seq:
             zero_elements = np.array([i for i in range(num_entities) if i not in unique_msgs.values()])
@@ -469,7 +515,6 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
             saver = tf.train.Saver(model.variables())
             tf.global_variables_initializer().run()
             print('Initialized graph')
-
 
             average_loss = 0
             best_hits_local = -np.inf

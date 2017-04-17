@@ -35,8 +35,6 @@ class TransH(object):
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
         unique_wr = w_embs[unique_inpo]
-        #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
-
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:, 0]
@@ -52,8 +50,6 @@ class TransH(object):
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
         unique_wr = w_embs[unique_inpo]
-        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
-
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             lhs_inds = np.argwhere(test_inpo == i)[:, 0]

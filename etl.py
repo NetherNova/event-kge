@@ -304,6 +304,27 @@ def prepare_fe_log_file(merged, file_name):
                 writer.writerow([i, fe[module_index], fe[time_index], fe[time_index]])
 
 
+def prepare_sensor_data(file_path):
+    df = pd.read_csv(file_path)
+    sensor_mapping = {}
+    for k in df:
+        sensor_mapping[k].setdefault(len(sensor_mapping))
+    return df, sensor_mapping
+
+
+def etl_sensor_data(module_file, line_file):
+    df = pd.read_csv(module_file, sep=";", error_bad_lines=False, decimal=',', parse_dates=[0])
+    df = df.groupby(by='Zeitspalte', as_index=True).mean()
+
+    df2 = pd.read_csv(line_file, sep=";", error_bad_lines=False, decimal=',', parse_dates=[0])
+    df2 = df2.set_index("Zeitspalte")
+    merged = df.merge(df2, left_index=True, right_index=True)
+    X = merged.corr()
+    X["std"] = merged.std()
+    X["mean"] = merged.mean()
+    X["max"] = merged.max()
+    X["min"] = merged.min()
+
 #prepare_sequences(df, "train_sequences", message_index, classification_event=None)
 
 #prepare_sequences(df, "train_sequences", message_index, classification_event=None)

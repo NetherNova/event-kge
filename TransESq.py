@@ -44,9 +44,6 @@ class TransESeq(object):
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
         unique_wr = w_embs[unique_inpo]
-
-        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
-
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:, 0]
@@ -60,10 +57,8 @@ class TransESeq(object):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         lhs = ent_embs[test_inpl]
         unique_wr = w_embs[unique_inpo]
-
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             lhs_inds = np.argwhere(test_inpo == i)[:, 0]
@@ -111,36 +106,27 @@ class TransESeq(object):
         self.test_inpo = tf.placeholder(tf.int32, [None], name="test_rell")
 
         wr = tf.nn.embedding_lookup(self.W, self.inpo)
-        #wr = tf.Print(wr, [wr], "wr: ")
-        lhs = tf.nn.embedding_lookup(self.E, self.inpl)
 
+        lhs = tf.nn.embedding_lookup(self.E, self.inpl)
         v_lhs = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpl), 1)
-        #v_lhs = tf.Print(v_lhs, [v_lhs], "lhs: ")
-        #v_lhs = tf.nn.embedding_lookup(self.V, inpl)
         lhs = lhs + tf.reduce_sum(tf.mul(v_lhs, wr), 2)
-        #lhs = (lhs + dot(v_lhs, wr) * wr) / 2
 
         rhs = tf.nn.embedding_lookup(self.E, self.inpr)
         v_rhs = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpr), 1)
-        #v_rhs = tf.nn.embedding_lookup(self.V, inpr)
         rhs = rhs + tf.reduce_sum(tf.mul(v_rhs, wr), 2)
-        #rhs = (rhs + dot(v_rhs, wr) * wr) / 2
 
         rell = tf.nn.embedding_lookup(self.R, self.inpo)
         relr = tf.nn.embedding_lookup(self.R, self.inpo)
 
         wrn = tf.nn.embedding_lookup(self.W, self.inpon)
+
         lhsn = tf.nn.embedding_lookup(self.E, self.inpln)
         v_lhsn = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inpln), 1)
-        #v_lhsn = tf.nn.embedding_lookup(self.V, inpln)
         lhsn = lhsn + tf.reduce_sum(tf.mul(v_lhsn, wrn), 2)
-        #lhsn = (lhsn + dot(v_lhsn, wrn) * wrn) / 2
 
         rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
         v_rhsn = tf.expand_dims(tf.nn.embedding_lookup(self.V, self.inprn), 1)
-        #v_rhsn = tf.nn.embedding_lookup(self.V, inprn)
         rhsn = rhsn + tf.reduce_sum(tf.mul(v_rhsn, wrn), 2)
-        #rhsn = (rhsn + dot(v_rhsn, wrn) * wrn) / 2
 
         relln = tf.nn.embedding_lookup(self.R, self.inpon)
         relrn = tf.nn.embedding_lookup(self.R, self.inpon)

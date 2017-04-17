@@ -394,6 +394,72 @@ def skipgram_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     return skipgram_loss
 
 
+def paragraph_vector_loss(vocab_size, num_sampled, embed, embedding_size, train_labels, num_paragraphs, paragraph_ids):
+    paragraph_vectors = tf.Variable(
+        tf.truncated_normal([num_paragraphs, embedding_size],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+
+    paragraph_embeddings = tf.nn.embedding_lookup(paragraph_vectors, paragraph_ids)
+    # TODO: how to concatenate multiple events? and paragraph vector?
+    embed = tf.concat()
+    nce_weights = tf.Variable(
+        tf.truncated_normal([vocab_size, embedding_size],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+    nce_biases = tf.Variable(tf.zeros([vocab_size]))
+
+    skipgram_loss = tf.reduce_mean(
+        tf.nn.nce_loss(weights=nce_weights,
+                       biases=nce_biases,
+                       labels=train_labels,
+                       inputs=embed,
+                       num_sampled=num_sampled,
+                       num_classes=vocab_size,
+                       remove_accidental_hits=True))
+    return skipgram_loss
+
+
+def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    W = tf.Variable(
+        tf.truncated_normal([vocab_size, embedding_size],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+    bias = tf.Variable(tf.zeros([vocab_size]))
+
+    # [batch_size, num_steps, embedding_size] into list of [batch_size, embedding_size]
+    event_list = tf.unstack(embed, axis=1)
+    cell = tf.nn.rnn_cell.LSTMCell(embedding_size)
+    outputs, state = tf.nn.rnn(cell, event_list, dtype=tf.float32)
+    embed_context = state[1]  # take last state only
+
+    loss = tf.reduce_mean(
+        tf.nn.nce_loss(weights=W,
+                       biases=bias,
+                       labels=train_labels,
+                       inputs=embed_context,
+                       num_sampled=num_sampled,
+                       num_classes=vocab_size,
+                       remove_accidental_hits=True))
+    return loss
+
+
+def weighted_matrix_factorization():
+    with tf.Session() as sess:
+        X_norm = (X - X.min()) / (X.max() - X.min())
+        X_norm_np = np.array(X_norm)
+        X_t = tf.constant(X_norm_np, tf.float32)
+        W1 = tf.Variable(tf.truncated_normal([53, 100]), tf.float32)
+        W2 = tf.Variable(tf.truncated_normal([100, 57]), tf.float32)
+        loss = tf.reduce_mean(tf.square(X_t - tf.matmul(W1, W2)))  # + 0.0001 * (tf.nn.l2_loss(W1) + tf.nn.l2_loss(W2))
+        optimizer1 = tf.train.AdamOptimizer(0.05).minimize(loss)  # , var_list=[W1])
+        # optimizer2 = tf.train.AdamOptimizer(0.05).minimize(loss, var_list=[W2])
+        tf.global_variables_initializer().run()
+        prev_l = np.inf
+        for i in xrange(2000):
+            _, l = sess.run([optimizer1, loss])
+            print l, 100.0 * l / prev_l
+            prev_l = l
+        y, res1, res2 = sess.run([X_t, W1, W2])
+
+
 def ranking_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, right_ind):
     errl = []
     errr = []

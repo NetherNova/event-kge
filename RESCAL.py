@@ -33,7 +33,6 @@ class RESCAL(object):
         lhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        # rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         rhs = ent_embs[test_inpr]
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
@@ -46,7 +45,6 @@ class RESCAL(object):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
-        #rell_mapping = np.array([np.argwhere(unique_inpo == test_inpo[i])[0][0] for i in xrange(len(test_inpo))])
         lhs = ent_embs[test_inpl]  # [num_test, d]
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
@@ -100,10 +98,6 @@ class RESCAL(object):
             sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
             kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
 
-        # TODO: add possibility to switch on transitivity constraint
-        # [(e1, r_trans, e2) - (e2, r_trans, e3)] - (e1, r_trans, e3)
-        # transitive closure need to be calculated incrementally...do in preprocessing
-
         # Skipgram Model
         self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
         self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
@@ -139,70 +133,3 @@ class RESCAL(object):
 
     def variables(self):
         return [self.E, self.R]
-
-            #
-            # # Initialize some / event entities with supplied embeddings
-            # if self.supp_event_embeddings:
-            #     initE = np.random.uniform((len(self.vocab_size), self.embedding_size),
-            #                               minval=-self.w_bound, maxval=self.w_bound)
-            #     print("Load supplied embeddings")
-            #     with open(self.supp_event_embeddings, "rb") as f:
-            #         supplied_embeddings = pickle.load(f)
-            #         supplied_dict = supplied_embeddings.get_dictionary()
-            #         for word, id in supplied_dict.iteritems():
-            #             initE[id] = supplied_embeddings.get_embeddings()[id]
-            #     session.run(self.E.assign(initE))
-            #
-            # if store_embeddings:
-            #     entity_embs = []
-            #     relation_embs = []
-            # for b in range(1, num_steps + 1):
-            #     batch_pos, batch_neg = tg.next()
-            #     test_batch_pos, _ = test_tg.next()
-            #     batch_x, batch_y = sg.next()
-            #     batch_y = np.array(batch_y).reshape((self.batch_size_sg, 1))
-            #     # calculate valid indices for scoring
-            #     feed_dict = {inpl: batch_pos[1, :], inpr: batch_pos[0, :], inpo: batch_pos[2, :],
-            #                  inpln: batch_neg[1, :], inprn: batch_neg[0, :], inpon: batch_neg[2, :],
-            #                  train_inputs: batch_x, train_labels: batch_y,
-            #                  global_step: b
-            #                  }
-            #     _, l, = session.run([optimizer, loss], feed_dict=feed_dict)
-            #     average_loss += l
-            #     if b % eval_step_size == 0:
-            #         feed_dict = {test_inpl: test_batch_pos[1, :], test_inpo: test_batch_pos[2, :],
-            #                      test_inpr: test_batch_pos[0, :]}
-            #         scores_l, scores_r = session.run([ranking_error_l, ranking_error_r], feed_dict=feed_dict)
-            #
-            #         errl, errr = ranking_error_triples(test_tg, scores_l, scores_r, test_batch_pos[1, :],
-            #                                  test_batch_pos[2, :], test_batch_pos[0, :])
-            #
-            #         hits_10 = np.mean(np.asarray(errl + errr) <= 10) * 100
-            #         mean_rank = np.mean(np.asarray(errl + errr))
-            #         print "Hits10: ", hits_10
-            #         print "MeanRank: ", mean_rank
-            #
-            #         mean_rank_list.append(mean_rank)
-            #         hits_10_list.append(hits_10)
-            #
-            #         if best_hits < hits_10:
-            #             best_hits = hits_10
-            #         if best_rank > mean_rank:
-            #             best_rank = mean_rank
-            #
-            #         if b > 0:
-            #             average_loss = average_loss / eval_step_size
-            #         loss_list.append(average_loss)
-            #
-            #         if store_embeddings:
-            #             entity_embs.append(session.run(self.E))
-            #             relation_embs.append(session.run(self.R))
-            #
-            #         # The average loss is an estimate of the loss over the last eval_step_size batches.
-            #         print('Average loss at step %d: %f' % (b, average_loss))
-            #         average_loss = 0
-            #
-            #     if not store_embeddings:
-            #         entity_embs = [session.run(self.E)]
-            #         relation_embs = [session.run(tf.reshape(self.R, [self.num_relations, self.embedding_size ** 2]))]
-            # return entity_embs, relation_embs, best_hits, best_rank, mean_rank_list, hits_10_list, loss_list
