@@ -215,8 +215,8 @@ def get_messages_to_fe(message_to_module_dict):
     messages_to_fe_df = pd.DataFrame(zip(messages_to_fe.keys(), messages_to_fe.values()), columns=["Meldetext", "FE"])
 
     print messages_to_fe_df.head(10)
-    messages_to_fe_df.to_csv("./test_data/messages_to_fe.txt", sep=",", quotechar='"')
-    reverse_messages_to_fe = dict(zip(messages_to_fe.values(), messages_to_fe.keys()))
+    # messages_to_fe_df.to_csv("./test_data/messages_to_fe.txt", sep=",", quotechar='"')
+    # reverse_messages_to_fe = dict(zip(messages_to_fe.values(), messages_to_fe.keys()))
 
     return messages_to_fe_df
 
@@ -273,7 +273,7 @@ def binary_sequences(sequences, index, unique_dict, classification_event=None):
     return train, labels
 
 
-def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size, classification_event='Dropping OEE'):
+def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size, classification_event=None):
     """
     Dumps pickle for sequences and dictionary
     :param data_frame:
@@ -292,6 +292,8 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
     # TODO: Is this needed somewhere?
     pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
+    print "Loaded %d sequences" %(len(train))
+    return len(train)
 
 
 def prepare_fe_log_file(merged, file_name):

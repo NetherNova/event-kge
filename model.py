@@ -441,6 +441,48 @@ def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     return loss
 
 
+def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_labels, num_sequences):
+    """
+
+    :param vocab_size:
+    :param num_sampled:
+    :param embed: tensor of size [batch_size, num_events, embedding_size]
+    :param embedding_size:
+    :param train_labels:
+    :param sequence_id:
+    :return:
+    """
+    # TODO: sequence number as paragraph id?
+    W_seq = tf.Variable(tf.truncated_normal([num_sequences, embedding_size]))
+
+    sequence_ids, train_labels = tf.split(1, 2, train_labels)     # TODO: extract first index as sequence index
+
+    sequence_vectors = tf.squeeze(tf.nn.embedding_lookup(W_seq, sequence_ids), axis=1)
+
+    embed_context = tf.reshape(embed, [embed.get_shape()[0].value, embed.get_shape()[1].value * embedding_size])
+
+    embed_context = tf.concat_v2([embed_context, sequence_vectors], axis=1)
+
+    #embed_context = tf.Print(embed_context.get_shape(),[embed_context], "context: ")
+
+    W = tf.Variable(
+        tf.truncated_normal([vocab_size, embed_context.get_shape()[1].value],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+    bias = tf.Variable(tf.zeros([vocab_size]))
+
+    # Softmax of concatenated vectors
+    loss = tf.reduce_mean(
+        tf.nn.nce_loss(weights=W,
+                       biases=bias,
+                       labels=train_labels,
+                       inputs=embed_context,
+                       num_sampled=num_sampled,
+                       num_classes=vocab_size,
+                       remove_accidental_hits=True))
+    return loss
+
+
+
 def weighted_matrix_factorization():
     with tf.Session() as sess:
         X_norm = (X - X.min()) / (X.max() - X.min())

@@ -1,12 +1,12 @@
 import tensorflow as tf
 import numpy as np
-from model import dot_similarity, dot, max_margin, skipgram_loss, lstm_loss
+from model import dot_similarity, dot, max_margin, skipgram_loss, lstm_loss, concat_window_loss
 
 
 class TransE(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, leftop, rightop, fnsim, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None,
-                 subclass_constr=None, concat=False):
+                 vocab_size, leftop, rightop, fnsim, sub_prop_constr=None, init_lr=1.0, event_layer="Skipgram",
+                 lambd=None, subclass_constr=None, num_sequences=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransE)
         :param num_entities:
@@ -32,9 +32,9 @@ class TransE(object):
         self.fnsim = fnsim
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
-        self.skipgram = skipgram
+        self.event_layer = event_layer
         self.subclass_constr = subclass_constr
-        self.concat = concat
+        self.num_sequences = num_sequences
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
         lhs = ent_embs
@@ -119,20 +119,29 @@ class TransE(object):
 
         self.loss = kg_loss
 
-        if self.skipgram:
+        mu = tf.constant(0.5)
+
+        if self.event_layer == "Skipgram":
             # Skipgram Model
             self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
             sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
                                     self.train_labels)
-            self.loss += sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
-        elif self.concat:
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 5]) # TODO: skip window size
+            self.loss += mu * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
+        elif self.event_layer == "LSTM":
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 10]) # TODO: skip window size
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
             embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
-            self.loss += concat_loss
+            self.loss += mu * concat_loss
+        elif self.event_layer == "Concat":
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 10])  # TODO: skip window size
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 2])
+            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
+            concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,
+                                             self.train_labels, self.num_sequences)
+            self.loss += mu * concat_loss
         else:
             self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
