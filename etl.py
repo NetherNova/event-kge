@@ -283,17 +283,17 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     :return:
     """
     train_data = time_window(data_frame, window_size)
-    train, labels = binary_sequences(train_data, index, unique_dict, classification_event)
+    result = []
     print "Preparing sequential data..."
-    print train[0:10]
-    print labels[0:10]
-    pickle.dump(train, open(path_to_file + ".pickle", "wb"))
-    pickle.dump(labels, open(path_to_file + "_labels.pickle", "wb"))
+    for i, seq in enumerate(train_data):
+        local_entities = [event[index] for event in seq]
+        result.append([unique_dict[entity] for entity in local_entities])
+    print result[:10]
+    pickle.dump(result, open(path_to_file + ".pickle", "wb"))
     reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
-    # TODO: Is this needed somewhere?
     pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
-    print "Loaded %d sequences" %(len(train))
-    return len(train)
+    print "Processed %d sequences" %(len(result))
+    return len(result)
 
 
 def prepare_fe_log_file(merged, file_name):

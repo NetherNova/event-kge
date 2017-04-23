@@ -16,8 +16,10 @@ import pandas as pd
 import tensorflow as tf
 from collections import defaultdict
 from model import ranking_error_triples
+from pre_training import EmbeddingPreTrainer
 
-rnd = np.random.RandomState(23)
+
+rnd = np.random.RandomState(25)
 
 
 class SkipgramBatchGenerator(object):
@@ -209,18 +211,15 @@ def slice_ontology(ontology, valid_proportion, test_proportion):
     valid_size = int(np.floor(valid_proportion * len(ontology)))
     test_size = int(np.floor(test_proportion * len(ontology)))
     slice_indices = rnd.choice(range(0, len(ontology)), valid_size + test_size, replace=False)
+    valid_indices = slice_indices[:valid_size]
+    test_indices = slice_indices[valid_size:]
     for i, (s, p, o) in enumerate(sorted(ontology.triples((None, None, None)))):
-        if i in slice_indices:
-            if len(ont_valid) < valid_size:
-                ont_valid.add((s, p, o))
-            else:
-                ont_test.add((s, p, o))
+        if i in valid_indices:
+            ont_valid.add((s, p, o))
+        elif i in test_indices:
+            ont_test.add((s, p, o))
         else:
             ont_train.add((s, p, o))
-
-    print list(ont_train.triples((None, None, None)))[0]
-    print list(ont_valid.triples((None, None, None)))[0]
-    print list(ont_test.triples((None, None, None)))[0]
     return ont_train, ont_valid, ont_test
 
 
@@ -346,12 +345,12 @@ class TranslationModels:
             name += "-" + event_layer
         return name
 
-####################### PATH PARAMETERS #############################
-base_path = "./sensor_data/"
+# PATH PARAMETERS
+base_path = "./test_data/"
 path_to_store_model = base_path + "Embeddings/"
 path_to_events = base_path + "Sequences/" # TODO: should be optional if no skipgram stuff
 path_to_schema = base_path + "Ontology/manufacturing_schema.rdf" # TODO: also optional if no schema present
-path_to_kg = base_path + "Ontology/amberg_inferred_v2.xml"   # "./test_data/amberg_inferred.xml"
+path_to_kg = base_path + "Ontology/amberg_inferred.xml"   # "./test_data/amberg_inferred.xml"
 path_to_store_sequences = base_path + "Sequences/"
 path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
@@ -376,36 +375,37 @@ if not public_data:
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     g_schema = read_ontology(path_to_schema)
     _, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
-    #subclass_info = []
+    # subclass_info = []
     vocab_size = len(unique_msgs)
 
-##################### Hyper-Parameters ###########################
+# Hyper-Parameters
 model_type = TranslationModels.Trans_E
 bernoulli = True
-event_layer = "Concat"
+# "Skipgram", "Concat", "LSTM"
+event_layer = "Skipgram"
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [50]    # [60, 100, 140, 180]
+param_dict['embedding_size'] = [60, 100, 140]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [128]     # [32, 64, 128]
-param_dict['learning_rate'] = [1.0]     # [0.5, 0.8, 1.0]
-param_dict['lambd'] = [0.005]
+param_dict['batch_size'] = [64, 128]     # [32, 64, 128]
+param_dict['learning_rate'] = [0.5, 1.0]     # [0.5, 0.8, 1.0]
+param_dict['lambd'] = [0.0005]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-num_steps = 1200
-eval_step_size = 50
+eval_step_size = 100
 test_proportion = 0.2
 validation_proportion = 0.1
 fnsim = l2_similarity
 leftop = trans
 rightop = ident_entity
-supp_event_embeddings = None    #"./Embeddings/supplied_embeddings5k.pickle"
+supp_event_embeddings = None #"./Embeddings/supplied_embeddings_60.pickle"
+pre_train = False
 sub_prop_constr = False
 
 # SKIP Parameters
 if event_layer is not None:
-    param_dict['num_skips'] = [10]   # [2, 4]
+    param_dict['num_skips'] = [3, 5]   # [2, 4]
     param_dict['num_sampled'] = [10]     # [5, 9]
-    param_dict['batch_size_sg'] = [128]     # [128, 512]
+    param_dict['batch_size_sg'] = [64, 128]     # [128, 512]
     num_sequences = prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index, unique_msgs,
                                       window_size)
 
@@ -461,6 +461,7 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
     param_combs = cross_parameter_eval(param_dict)
     for comb_num, tmp_param_dict in enumerate(param_combs):
         params = Parameters(**tmp_param_dict)
+        num_steps = (2345 / params.batch_size) * 100
         print "Progress: %d prct" %(int((100.0 * comb_num) / len(param_combs)))
         print "Embedding size: ", params.embedding_size
         print "Batch size: ", params.batch_size
@@ -471,33 +472,23 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
 
         filter_triples = valid_tg.all_triples
 
-        if event_layer == "Skipgram":
-            sequence_file = pickle.load(open(path_to_store_sequences + sequence_file_name + ".pickle", "rb"))
-            sequences = [seq.split(' ') for seq in sequence_file]
-            sequence_file = None
-            # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
+        if event_layer:
+            sequences = pickle.load(open(path_to_store_sequences + sequence_file_name + ".pickle", "rb"))
             batch_size_sg = params.batch_size_sg
             num_skips = params.num_skips
-            sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
             num_sampled = params.num_sampled
-        elif event_layer == "LSTM":
-            sequence_file = pickle.load(open(path_to_store_sequences + sequence_file_name + ".pickle", "rb"))
-            sequences = [seq.split(' ') for seq in sequence_file]
-            sequence_file = None
-            # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
-            batch_size_sg = params.batch_size_sg
-            num_skips = params.num_skips
-            sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg)
-            num_sampled = params.num_sampled
-        elif event_layer == "Concat":
-            sequence_file = pickle.load(open(path_to_store_sequences + sequence_file_name + ".pickle", "rb"))
-            sequences = [seq.split(' ') for seq in sequence_file]
-            sequence_file = None
-            # sequences = sequences[: int(np.floor(len(sequences) *  0.5))]
-            batch_size_sg = params.batch_size_sg
-            num_skips = params.num_skips
-            sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg, True)
-            num_sampled = params.num_sampled
+            if pre_train:
+                pre_trainer = EmbeddingPreTrainer(unique_msgs, SkipgramBatchGenerator(sequences, num_skips, batch_size_sg),
+                                                  params.embedding_size, vocab_size, num_sampled, batch_size_sg,
+                                                  supp_event_embeddings)
+                pre_trainer.train(5000)
+                pre_trainer.save()
+            if event_layer == "Skipgram":
+                sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
+            elif event_layer == "LSTM":
+                sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg)
+            elif event_layer == "Concat":
+                sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg, True)
         else:
             num_sampled = 1
             batch_size_sg = 0
@@ -510,23 +501,23 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
         if model_type == TranslationModels.Trans_E:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, sub_prop_constr,
-                          params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences]
+                          params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences, num_skips]
             model = TransE(*param_list)
         elif model_type == TranslationModels.Trans_E_seq:
             zero_elements = np.array([i for i in range(num_entities) if i not in unique_msgs.values()])
             param_list = [num_entities, num_relations, params.embedding_size, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr,
-                          params.learning_rate, event_layer, params.lambd]
+                          params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences, num_skips]
             model = TransESeq(*param_list)
         elif model_type == TranslationModels.Trans_H:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, sub_prop_constr, params.learning_rate, event_layer,
-                          params.lambd]
+                          params.lambd, subclass_info, num_sequences, num_skips]
             model = TransH(*param_list)
         elif model_type == TranslationModels.RESCAL:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, sub_prop_constr, params.learning_rate, event_layer,
-                          params.lambd]
+                          params.lambd, subclass_info, num_sequences, num_skips]
             model = RESCAL(*param_list)
 
         # Build tensorflow computation graph
@@ -549,15 +540,14 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
             if supp_event_embeddings:
                 w_bound = np.sqrt(6. / params.embedding_size)
                 initE = rnd.uniform(-w_bound, w_bound, (num_entities, params.embedding_size))
-                print("Loading supplied embeddings")
+                print("Loading supplied embeddings...")
                 with open(supp_event_embeddings, "rb") as f:
                     supplied_embeddings = pickle.load(f)
                     supplied_dict = supplied_embeddings.get_dictionary()
-                    for event_id, skip_emb_id in supplied_dict.iteritems():
-                        if event_id != 'UNK':
-                            # need to cast to int
-                            id = int(event_id)
-                            initE[id] = supplied_embeddings.get_embeddings()[skip_emb_id]
+                    for event_id, emb_id in supplied_dict.iteritems():
+                        if event_id in unique_msgs:
+                            new_id = unique_msgs[event_id]
+                            initE[new_id] = supplied_embeddings.get_embeddings()[emb_id]
                         # TODO: assign V for TransESq
                 session.run(model.assign_initial(initE))
 
@@ -583,12 +573,9 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                              }
                 # One train step in mini-batch
                 _, l = session.run(model.train(), feed_dict=feed_dict)
-                print "Loss:", l
                 average_loss += l
-
                 # Run post-ops: regularization etc.
                 session.run(model.post_ops())
-
                 # Evaluate on validation set
                 if b % eval_step_size == 0:
                     valid_inpl = valid_batch_pos[1, :]
@@ -606,10 +593,6 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                         r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict=feed_dict)
                         scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs, w_embs)
                         scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs, w_embs)
-                    elif model_type == TranslationModels.Trans_E:
-                        r_embs, embs = session.run([model.R, model.E], feed_dict=feed_dict)
-                        scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs)
-                        scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs)
                     else:
                         r_embs, embs = session.run([model.R, model.E], feed_dict=feed_dict)
                         scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs)
@@ -617,7 +600,6 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
 
                     errl, errr = ranking_error_triples(filter_triples, scores_l, scores_r, valid_inpl,
                                                             valid_inpo, valid_inpr)
-
                     hits_10 = np.mean(np.asarray(errl + errr) <= 10) * 100
                     mean_rank = np.mean(np.asarray(errl + errr))
                     mean_rank_list.append(mean_rank)
@@ -657,7 +639,6 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                 for msg_name, msg_id in unique_msgs.iteritems():
                     reverse_entity_dictionary[msg_id] = msg_name
             reverse_relation_dictionary = dict(zip(rel_dict.values(), rel_dict.keys()))
-
             # save embeddings to disk
             if store_embeddings:
                 for i in range(len(entity_embs)):
@@ -676,11 +657,12 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                 writer.writerow([params.embedding_size, params.batch_size, params.learning_rate, num_skips, num_sampled,
                                  batch_size_sg, i, mean_rank_list[i], hits_10_list[i], loss_list[i]])
 
+################### Test Set Evaluation ######################
 # Reset graph, load best model and apply to test data set
 tf.reset_default_graph()
-
 with tf.Session() as session:
     # Need to instantiate model again
+    print best_param_list
     if model_type == TranslationModels.Trans_E:
         model = TransE(*best_param_list)
     elif model_type == TranslationModels.Trans_E_seq:

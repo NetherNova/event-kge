@@ -6,7 +6,7 @@ from model import dot_similarity, dot, max_margin, skipgram_loss, lstm_loss, con
 class TransE(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
                  vocab_size, leftop, rightop, fnsim, sub_prop_constr=None, init_lr=1.0, event_layer="Skipgram",
-                 lambd=None, subclass_constr=None, num_sequences=None):
+                 lambd=None, subclass_constr=None, num_sequences=None, num_events=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransE)
         :param num_entities:
@@ -35,6 +35,7 @@ class TransE(object):
         self.event_layer = event_layer
         self.subclass_constr = subclass_constr
         self.num_sequences = num_sequences
+        self.num_events = num_events
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
         lhs = ent_embs
@@ -119,7 +120,7 @@ class TransE(object):
 
         self.loss = kg_loss
 
-        mu = tf.constant(0.5)
+        mu = tf.constant(1.0)
 
         if self.event_layer == "Skipgram":
             # Skipgram Model
@@ -130,13 +131,13 @@ class TransE(object):
                                     self.train_labels)
             self.loss += mu * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
         elif self.event_layer == "LSTM":
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 10]) # TODO: skip window size
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events]) # TODO: skip window size
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
             embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
             self.loss += mu * concat_loss
         elif self.event_layer == "Concat":
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 10])  # TODO: skip window size
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 2])
             embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,

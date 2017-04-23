@@ -125,7 +125,7 @@ def rank_right_fn_idx(simfn, embeddings_ent, embeddings_rel, leftop, rightop, in
 class SuppliedEmbedding(object):
     def __init__(self, W, dictionary):
         self._W = W
-        self._dictionary = dictionary
+        self._dictionary = dictionary   # {'id' : id}
 
     def get_embeddings(self):
         return self._W
