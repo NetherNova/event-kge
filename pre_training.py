@@ -1,7 +1,7 @@
 import tensorflow as tf
 from model import skipgram_loss
 import numpy as np
-from model import SuppliedEmbedding
+from model import SuppliedEmbedding, normalize
 
 
 class EmbeddingPreTrainer(object):
@@ -20,6 +20,7 @@ class EmbeddingPreTrainer(object):
         print "Pre-training embeddings..."
         with tf.Session() as session:
             self.model.create_graph()
+            self.normalized = normalize(self.model.variables())
             tf.global_variables_initializer().run()
             average_loss = 0
             for b in range(1, num_steps + 1):
@@ -35,7 +36,8 @@ class EmbeddingPreTrainer(object):
                     print "Step %d - average loss %.2f " %(b, average_loss / 100.0)
                     average_loss = 0
             # TODO: normalize?
-            self.embs = session.run(self.model.variables())
+            self.embs = session.run(self.normalized)
+
 
     def save(self):
         if self.embs is None:

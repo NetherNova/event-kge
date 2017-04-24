@@ -7,7 +7,7 @@ import csv
 import itertools
 from model import dot_similarity, trans, ident_entity, l2_similarity
 from TransE import TransE
-from TransESq import TransESeq
+from TransEve import TransEve
 from TransH import TransH
 from RESCAL import RESCAL
 import seaborn as sns
@@ -328,7 +328,7 @@ def bernoulli_probs(ontology, relation_dictionary):
 
 
 class TranslationModels:
-    Trans_E, Trans_H, RESCAL, Trans_E_seq = range(4)
+    Trans_E, Trans_H, RESCAL, Trans_Eve = range(4)
 
     @staticmethod
     def get_model_name(event_layer, num):
@@ -337,7 +337,7 @@ class TranslationModels:
             name = "TransE"
         elif num == TranslationModels.Trans_H:
             name = "TransH"
-        elif num == TranslationModels.Trans_E_seq:
+        elif num == TranslationModels.Trans_Eve:
             name = "TranesESq"
         else:
             name = "RESCAL"
@@ -379,17 +379,17 @@ if not public_data:
     vocab_size = len(unique_msgs)
 
 # Hyper-Parameters
-model_type = TranslationModels.Trans_E
+model_type = TranslationModels.RESCAL
 bernoulli = True
 # "Skipgram", "Concat", "LSTM"
 event_layer = "Skipgram"
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [60, 100, 140]
+param_dict['embedding_size'] = [60]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [64, 128]     # [32, 64, 128]
-param_dict['learning_rate'] = [0.5, 1.0]     # [0.5, 0.8, 1.0]
-param_dict['lambd'] = [0.0005]
+param_dict['batch_size'] = [128]     # [32, 64, 128]
+param_dict['learning_rate'] = [1.0]     # [0.5, 0.8, 1.0]
+param_dict['lambd'] = [0.0001]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
 eval_step_size = 100
 test_proportion = 0.2
@@ -397,15 +397,15 @@ validation_proportion = 0.1
 fnsim = l2_similarity
 leftop = trans
 rightop = ident_entity
-supp_event_embeddings = None #"./Embeddings/supplied_embeddings_60.pickle"
-pre_train = False
+supp_event_embeddings = "./Embeddings/supplied_embeddings_60.pickle"
+pre_train = True
 sub_prop_constr = False
 
 # SKIP Parameters
 if event_layer is not None:
-    param_dict['num_skips'] = [3, 5]   # [2, 4]
+    param_dict['num_skips'] = [4]   # [2, 4]
     param_dict['num_sampled'] = [10]     # [5, 9]
-    param_dict['batch_size_sg'] = [64, 128]     # [128, 512]
+    param_dict['batch_size_sg'] = [128]     # [128, 512]
     num_sequences = prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index, unique_msgs,
                                       window_size)
 
@@ -503,12 +503,12 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, sub_prop_constr,
                           params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences, num_skips]
             model = TransE(*param_list)
-        elif model_type == TranslationModels.Trans_E_seq:
+        elif model_type == TranslationModels.Trans_Eve:
             zero_elements = np.array([i for i in range(num_entities) if i not in unique_msgs.values()])
             param_list = [num_entities, num_relations, params.embedding_size, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr,
                           params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences, num_skips]
-            model = TransESeq(*param_list)
+            model = TransEve(*param_list)
         elif model_type == TranslationModels.Trans_H:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                           batch_size_sg, num_sampled, vocab_size, sub_prop_constr, params.learning_rate, event_layer,
@@ -584,7 +584,7 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                     feed_dict = {model.test_inpl: valid_inpl, model.test_inpo: valid_inpo,
                                  model.test_inpr: valid_inpr}
 
-                    if model_type == TranslationModels.Trans_E_seq:
+                    if model_type == TranslationModels.Trans_Eve:
                         r_embs, embs, w_embs, v_embs = session.run([model.R, model.E, model.W, model.V],
                                                                    feed_dict=feed_dict)
                         scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs, w_embs, v_embs)
@@ -665,8 +665,8 @@ with tf.Session() as session:
     print best_param_list
     if model_type == TranslationModels.Trans_E:
         model = TransE(*best_param_list)
-    elif model_type == TranslationModels.Trans_E_seq:
-        model = TransESeq(*best_param_list)
+    elif model_type == TranslationModels.Trans_Eve:
+        model = TransEve(*best_param_list)
     elif model_type == TranslationModels.Trans_H:
         model = TransH(*best_param_list)
     elif model_type == TranslationModels.RESCAL:
@@ -684,7 +684,7 @@ with tf.Session() as session:
     feed_dict = {model.test_inpl: test_inpl, model.test_inpo: test_inpo,
                  model.test_inpr: test_inpr}
 
-    if model_type == TranslationModels.Trans_E_seq:
+    if model_type == TranslationModels.Trans_Eve:
         r_embs, embs, w_embs, v_embs = session.run([model.R, model.E, model.W, model.V],
                                                    feed_dict=feed_dict)
         scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs, w_embs, v_embs)
@@ -693,19 +693,14 @@ with tf.Session() as session:
         r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict=feed_dict)
         scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs, w_embs)
         scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs, w_embs)
-    elif model_type == TranslationModels.Trans_E:
-        r_embs, embs = session.run([model.R, model.E], feed_dict=feed_dict)
-        scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs)
-        scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs)
     else:
         r_embs, embs = session.run([model.R, model.E], feed_dict=feed_dict)
         scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs)
         scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs)
 
-    errl, errr = ranking_error_triples(filter_triples, scores_l, scores_r, test_inpl,
-                                       test_inpo, test_inpr)
-# END OF SESSION
+    errl, errr = ranking_error_triples(filter_triples, scores_l, scores_r, test_inpl, test_inpo, test_inpr)
 
+# END OF SESSION
 err_arr = np.asarray(errl + errr)
 hits_10 = np.mean(err_arr <= 10) * 100
 hits_3 = np.mean(err_arr <= 3) * 100

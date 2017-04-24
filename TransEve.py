@@ -1,13 +1,12 @@
 import tensorflow as tf
 import numpy as np
-from model import l2_similarity, dot, trans, ident_entity, max_margin, dot_similarity, skipgram_loss, ranking_error_triples
-import pickle
+from model import dot, max_margin, dot_similarity, skipgram_loss, lstm_loss, concat_window_loss
 
 
-class TransESeq(object):
-    def __init__(self, num_entities, num_relations, embedding_size, seq_embeddings_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr=None,
-                 init_lr=1.0, skipgram=True, lambd=None):
+class TransEve(object):
+    def __init__(self, num_entities, num_relations, embedding_size, seq_embeddings_size, batch_size_kg, batch_size_sg,
+                 num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr=None, init_lr=1.0,
+                 event_layer="Skipgram", lambd=None, subclass_constr=None, num_sequences=None, num_events=None):
         """
         TransE plus linear transformation of sequential embeddings
         :param num_entities:
@@ -35,8 +34,11 @@ class TransESeq(object):
         self.zero_elements = zero_elements
         self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
-        self.skipgram = skipgram
+        self.event_layer = event_layer
         self.lambd = lambd
+        self.subclass_constr = subclass_constr
+        self.num_sequences = num_sequences
+        self.num_events = num_events
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, w_embs, v_embs):
         lhs = ent_embs
@@ -75,7 +77,7 @@ class TransESeq(object):
         self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound))
         self.V = tf.Variable(tf.random_uniform((self.num_entities, self.seq_embeddings_size), minval=-w_bound,
-                                               maxval=w_bound))
+                                               maxval=w_bound), trainable=False)
         # TODO: set V entries to 0-vector for unused ones
         self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound))
@@ -148,24 +150,45 @@ class TransESeq(object):
 
         kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(reg_l) + tf.nn.l2_loss(reg_r))
 
+        self.loss = kg_loss
+
+        mu = tf.constant(1.0)
+
         if self.sub_prop_constr:
             sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
             sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
-            kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
+            self.loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
 
-        # Skipgram Model
-        self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
-        self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+        if len(self.subclass_constr) > 0:
+            subclass_types = tf.nn.embedding_lookup(self.E, self.subclass_constr[:,0])
+            supclass_types = tf.nn.embedding_lookup(self.E, self.subclass_constr[:,1])
+            self.loss += tf.maximum(0., 1 - tf.reduce_sum(dot(subclass_types, supclass_types)))
 
-        # In this model we put the extra embeddings into skipgram, not E
-        sg_embed = tf.nn.embedding_lookup(self.V, self.train_inputs)
-
-        sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.seq_embeddings_size, self.train_labels)
-
-        if self.skipgram:
-            self.loss = kg_loss + sg_loss
+        if self.event_layer == "Skipgram":
+            # Skipgram Model
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+            sg_embed = tf.nn.embedding_lookup(self.V, self.train_inputs)
+            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
+                                    self.train_labels)
+            self.loss += mu * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
+        elif self.event_layer == "LSTM":
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events]) # TODO: skip window size
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+            embed = tf.nn.embedding_lookup(self.V, self.train_inputs)
+            concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
+            self.loss += mu * concat_loss
+        elif self.event_layer == "Concat":
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 2])
+            embed = tf.nn.embedding_lookup(self.V, self.train_inputs)
+            concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,
+                                             self.train_labels, self.num_sequences)
+            self.loss += mu * concat_loss
         else:
-            self.loss = kg_loss
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
         learning_rate = tf.constant(starter_learning_rate)
