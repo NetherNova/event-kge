@@ -1,0 +1,237 @@
+<http://www.wikidata.org/entity/Q6868239> <http://www.w3.org/2000/01/rdf-schema#label> "Minnesota Fillies" .
+<http://www.wikidata.org/entity/Q1538348> <http://www.w3.org/2000/01/rdf-schema#label> "Virginia Squires" .
+<http://www.wikidata.org/entity/Q159729> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q456730> .
+<http://www.wikidata.org/entity/Q1544869> <http://www.w3.org/2000/01/rdf-schema#label> "Seattle Storm" .
+<http://www.wikidata.org/entity/Q6939475> <http://www.w3.org/2000/01/rdf-schema#label> "Murray State Racers men's basketball" .
+<http://www.wikidata.org/entity/Q169661> <http://www.w3.org/2000/01/rdf-schema#label> "Detroit Pistons" .
+<http://www.wikidata.org/entity/Q2839652> <http://www.w3.org/2000/01/rdf-schema#label> "Detroit Falcons" .
+<http://www.wikidata.org/entity/Q3901416> <http://www.w3.org/2000/01/rdf-schema#label> "Philadelphia Tapers" .
+<http://www.wikidata.org/entity/Q8021265> <http://www.w3.org/2000/01/rdf-schema#label> "Williamsport Billies" .
+<http://www.wikidata.org/entity/Q1631487> <http://www.w3.org/2000/01/rdf-schema#label> "Houston Mavericks" .
+<http://www.wikidata.org/entity/Q1468969> <http://www.w3.org/2000/01/rdf-schema#label> "Minnesota Muskies" .
+<http://www.wikidata.org/entity/Q7231895> <http://www.w3.org/2000/01/rdf-schema#label> "Portland Chinooks" .
+<http://www.wikidata.org/entity/Q2984247> <http://www.w3.org/2000/01/rdf-schema#label> "George Washington Colonials men's basketball" .
+<http://www.wikidata.org/entity/Q2883724> <http://www.w3.org/2000/01/rdf-schema#label> "Wilkes-Barre Barons" .
+<http://www.wikidata.org/entity/Q157376> <http://www.w3.org/2000/01/rdf-schema#label> "Golden State Warriors" .
+<http://www.wikidata.org/entity/Q974705> <http://www.w3.org/2000/01/rdf-schema#label> "New York Liberty" .
+<http://www.wikidata.org/entity/Q5416043> <http://www.w3.org/2000/01/rdf-schema#label> "Evansville Thunder" .
+<http://www.wikidata.org/entity/Q1399074> <http://www.w3.org/2000/01/rdf-schema#label> "Fayetteville Patriots" .
+<http://www.wikidata.org/entity/Q16994823> <http://www.w3.org/2000/01/rdf-schema#label> "Harlem Wizards" .
+<http://www.wikidata.org/entity/Q1465192> <http://www.w3.org/2000/01/rdf-schema#label> "Washington Mystics" .
+<http://www.wikidata.org/entity/Q3400957> <http://www.w3.org/2000/01/rdf-schema#label> "Portland Power" .
+<http://www.wikidata.org/entity/Q2706682> <http://www.w3.org/2000/01/rdf-schema#label> "Florida Flame" .
+<http://www.wikidata.org/entity/Q726423> <http://www.w3.org/2000/01/rdf-schema#label> "Denver Nuggets" .
+<http://www.wikidata.org/entity/Q6904255> <http://www.w3.org/2000/01/rdf-schema#label> "Montana Golden Nuggets" .
+<http://www.wikidata.org/entity/Q3326068> <http://www.w3.org/2000/01/rdf-schema#label> "Hazleton Mountaineers" .
+<http://www.wikidata.org/entity/Q948798> <http://www.w3.org/2000/01/rdf-schema#label> "Carolina Cougars" .
+<http://www.wikidata.org/entity/Q3128787> <http://www.w3.org/2000/01/rdf-schema#label> "Waterloo Hawks" .
+<http://www.wikidata.org/entity/Q3421779> <http://www.w3.org/2000/01/rdf-schema#label> "Cleveland Rebels" .
+<http://www.wikidata.org/entity/Q2928124> <http://www.w3.org/2000/01/rdf-schema#label> "Baltimore Bullets" .
+<http://www.wikidata.org/entity/Q159893> <http://www.w3.org/2000/01/rdf-schema#label> "Atlanta Hawks" .
+<http://www.wikidata.org/entity/Q3493213> <http://www.w3.org/2000/01/rdf-schema#label> "Philadelphia Sphas" .
+<http://www.wikidata.org/entity/Q3683810> <http://www.w3.org/2000/01/rdf-schema#label> "Columbus Horizon" .
+<http://www.wikidata.org/entity/Q1401593> <http://www.w3.org/2000/01/rdf-schema#label> "La Crosse Bobcats" .
+<http://www.wikidata.org/entity/Q121783> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q449642> .
+<http://www.wikidata.org/entity/Q2060261> <http://www.w3.org/2000/01/rdf-schema#label> "Sioux Falls Skyforce" .
+<http://www.wikidata.org/entity/Q3628982> <http://www.w3.org/2000/01/rdf-schema#label> "Atl\u00E9ticos de San Germ\u00E1n" .
+<http://www.wikidata.org/entity/Q1509765> <http://www.w3.org/2000/01/rdf-schema#label> "Kentucky Colonels" .
+<http://www.wikidata.org/entity/Q7547902> <http://www.w3.org/2000/01/rdf-schema#label> "Snohomish County Explosion" .
+<http://www.wikidata.org/entity/Q8043283> <http://www.w3.org/2000/01/rdf-schema#label> "Xavier Musketeers men's basketball" .
+<http://www.wikidata.org/entity/Q6392430> <http://www.w3.org/2000/01/rdf-schema#label> "Kentucky Wildcats women's basketball" .
+<http://www.wikidata.org/entity/Q16970019> <http://www.w3.org/2000/01/rdf-schema#label> "Xavier Musketeers women's basketball" .
+<http://www.wikidata.org/entity/Q4791345> <http://www.w3.org/2000/01/rdf-schema#label> "Arizona Lightning" .
+<http://www.wikidata.org/entity/Q15927936> <http://www.w3.org/2000/01/rdf-schema#label> "New York NBA Development League team" .
+<http://www.wikidata.org/entity/Q132880> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q660606> .
+<http://www.wikidata.org/entity/Q16147084> <http://www.w3.org/2000/01/rdf-schema#label> "Metro State Roadrunners men's basketball" .
+<http://www.wikidata.org/entity/Q3177814> <http://www.w3.org/2000/01/rdf-schema#label> "Indianapolis Jets" .
+<http://www.wikidata.org/entity/Q7863949> <http://www.w3.org/2000/01/rdf-schema#label> "UCF Knights women's basketball" .
+<http://www.wikidata.org/entity/Q672940> <http://www.w3.org/2000/01/rdf-schema#label> "Arkansas RimRockers" .
+<http://www.wikidata.org/entity/Q6148094> <http://www.w3.org/2000/01/rdf-schema#label> "Toledo Jeeps" .
+<http://www.wikidata.org/entity/Q132880> <http://www.w3.org/2000/01/rdf-schema#label> "Toronto Raptors" .
+<http://www.wikidata.org/entity/Q826404> <http://www.w3.org/2000/01/rdf-schema#label> "Anaheim Amigos" .
+<http://www.wikidata.org/entity/Q7912570> <http://www.w3.org/2000/01/rdf-schema#label> "Valparaiso Crusaders men's basketball" .
+<http://www.wikidata.org/entity/Q1126243> <http://www.w3.org/2000/01/rdf-schema#label> "Connecticut Sun" .
+<http://www.wikidata.org/entity/Q976396> <http://www.w3.org/2000/01/rdf-schema#label> "Los Angeles Clippers" .
+<http://www.wikidata.org/entity/Q169165> <http://www.w3.org/2000/01/rdf-schema#label> "Washington Wizards" .
+<http://www.wikidata.org/entity/Q951458> <http://www.w3.org/2000/01/rdf-schema#label> "San Diego Sails" .
+<http://www.wikidata.org/entity/Q121783> <http://www.w3.org/2000/01/rdf-schema#label> "Los Angeles Lakers" .
+<http://www.wikidata.org/entity/Q12415759> <http://www.w3.org/2000/01/rdf-schema#label> "Delaware 87ers" .
+<http://www.wikidata.org/entity/Q161345> <http://www.w3.org/2000/01/rdf-schema#label> "Houston Rockets" .
+<http://www.wikidata.org/entity/Q864209> <http://www.w3.org/2000/01/rdf-schema#label> "Great Falls Explorers" .
+<http://www.wikidata.org/entity/Q7101351> <http://www.w3.org/2000/01/rdf-schema#label> "Oregon State Beavers men's basketball" .
+<http://www.wikidata.org/entity/Q6170391> <http://www.w3.org/2000/01/rdf-schema#label> "Youngstown Bears" .
+<http://www.wikidata.org/entity/Q954929> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Stags" .
+<http://www.wikidata.org/entity/Q180950> <http://www.w3.org/2000/01/rdf-schema#label> "Oklahoma City Thunder" .
+<http://www.wikidata.org/entity/Q1470412> <http://www.w3.org/2000/01/rdf-schema#label> "Portland Fire" .
+<http://www.wikidata.org/entity/Q7858128> <http://www.w3.org/2000/01/rdf-schema#label> "Twin City Ballers" .
+<http://www.wikidata.org/entity/Q2992324> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Condors" .
+<http://www.wikidata.org/entity/Q1812243> <http://www.w3.org/2000/01/rdf-schema#label> "Utah Starzz" .
+<http://www.wikidata.org/entity/Q131364> <http://www.w3.org/2000/01/rdf-schema#label> "New York Knicks" .
+<http://www.wikidata.org/entity/Q5665289> <http://www.w3.org/2000/01/rdf-schema#label> "Harrisburg Senators" .
+<http://www.wikidata.org/entity/Q3880354> <http://www.w3.org/2000/01/rdf-schema#label> "Oakland Oaks" .
+<http://www.wikidata.org/entity/Q5025734> <http://www.w3.org/2000/01/rdf-schema#label> "Camden Bullets" .
+<http://www.wikidata.org/entity/Q163480> <http://www.w3.org/2000/01/rdf-schema#label> "Charlotte Hornets" .
+<http://www.wikidata.org/entity/Q7354044> <http://www.w3.org/2000/01/rdf-schema#label> "Rochester Zeniths" .
+<http://www.wikidata.org/entity/Q946448> <http://www.w3.org/2000/01/rdf-schema#label> "New Orleans Buccaneers" .
+<http://www.wikidata.org/entity/Q4974848> <http://www.w3.org/2000/01/rdf-schema#label> "Brooklyn Hispano" .
+<http://www.wikidata.org/entity/Q655386> <http://www.w3.org/2000/01/rdf-schema#label> "Miami Sol" .
+<http://www.wikidata.org/entity/Q1606471> <http://www.w3.org/2000/01/rdf-schema#label> "Memphis Sounds" .
+<http://www.wikidata.org/entity/Q2550422> <http://www.w3.org/2000/01/rdf-schema#label> "Washington Caps" .
+<http://www.wikidata.org/entity/Q162990> <http://www.w3.org/2000/01/rdf-schema#label> "Cleveland Cavaliers" .
+<http://www.wikidata.org/entity/Q7548983> <http://www.w3.org/2000/01/rdf-schema#label> "SoCal Legends" .
+<http://www.wikidata.org/entity/Q4791734> <http://www.w3.org/2000/01/rdf-schema#label> "Arkansas ArchAngels" .
+<http://www.wikidata.org/entity/Q6765683> <http://www.w3.org/2000/01/rdf-schema#label> "Marist Red Foxes men's basketball" .
+<http://www.wikidata.org/entity/Q577296> <http://www.w3.org/2000/01/rdf-schema#label> "Quad City Thunder" .
+<http://www.wikidata.org/entity/Q8058663> <http://www.w3.org/2000/01/rdf-schema#label> "Youngstown Pride" .
+<http://www.wikidata.org/entity/Q1647892> <http://www.w3.org/2000/01/rdf-schema#label> "Allentown Jets" .
+<http://www.wikidata.org/entity/Q132893> <http://www.w3.org/2000/01/rdf-schema#label> "Dallas Mavericks" .
+<http://www.wikidata.org/entity/Q170649> <http://www.w3.org/2000/01/rdf-schema#label> "Utah Jazz" .
+<http://www.wikidata.org/entity/Q132893> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q339256> .
+<http://www.wikidata.org/entity/Q3905889> <http://www.w3.org/2000/01/rdf-schema#label> "Pittsburgh Piranhas" .
+<http://www.wikidata.org/entity/Q5211315> <http://www.w3.org/2000/01/rdf-schema#label> "Dallas Defenders" .
+<http://www.wikidata.org/entity/Q3667687> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Majors" .
+<http://www.wikidata.org/entity/Q3360254> <http://www.w3.org/2000/01/rdf-schema#label> "Anderson Packers" .
+<http://www.wikidata.org/entity/Q796358> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Sky" .
+<http://www.wikidata.org/entity/Q159729> <http://www.w3.org/2000/01/rdf-schema#label> "San Antonio Spurs" .
+<http://www.wikidata.org/entity/Q8027125> <http://www.w3.org/2000/01/rdf-schema#label> "Wisconsin Badgers women's ice hockey" .
+<http://www.wikidata.org/entity/Q5308979> <http://www.w3.org/2000/01/rdf-schema#label> "Druid City Dragons" .
+<http://www.wikidata.org/entity/Q3280492> <http://www.w3.org/2000/01/rdf-schema#label> "Miami Majesty" .
+<http://www.wikidata.org/entity/Q2837958> <http://www.w3.org/2000/01/rdf-schema#label> "Indiana Alley Cats" .
+<http://www.wikidata.org/entity/Q170329> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q2456047> .
+<http://www.wikidata.org/entity/Q6672674> <http://www.w3.org/2000/01/rdf-schema#label> "Long Island Ducks" .
+<http://www.wikidata.org/entity/Q131371> <http://www.w3.org/2000/01/rdf-schema#label> "Boston Celtics" .
+<http://www.wikidata.org/entity/Q873250> <http://www.w3.org/2000/01/rdf-schema#label> "Oakland Oaks" .
+<http://www.wikidata.org/entity/Q6483246> <http://www.w3.org/2000/01/rdf-schema#label> "Lancaster Red Roses" .
+<http://www.wikidata.org/entity/Q1815450> <http://www.w3.org/2000/01/rdf-schema#label> "Miami Floridians" .
+<http://www.wikidata.org/entity/Q3837268> <http://www.w3.org/2000/01/rdf-schema#label> "Los Angeles Jets" .
+<http://www.wikidata.org/entity/Q5095712> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Muscle" .
+<http://www.wikidata.org/entity/Q5265978> <http://www.w3.org/2000/01/rdf-schema#label> "Detroit Panthers" .
+<http://www.wikidata.org/entity/Q131364> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q555355> .
+<http://www.wikidata.org/entity/Q5579307> <http://www.w3.org/2000/01/rdf-schema#label> "Golden Cyclones" .
+<http://www.wikidata.org/entity/Q3748481> <http://www.w3.org/2000/01/rdf-schema#label> "Fort Wayne Fury" .
+<http://www.wikidata.org/entity/Q1274643> <http://www.w3.org/2000/01/rdf-schema#label> "Phoenix Mercury" .
+<http://www.wikidata.org/entity/Q1631017> <http://www.w3.org/2000/01/rdf-schema#label> "Indiana Fever" .
+<http://www.wikidata.org/entity/Q7231960> <http://www.w3.org/2000/01/rdf-schema#label> "Portland Indians" .
+<http://www.wikidata.org/entity/Q5095790> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Steam" .
+<http://www.wikidata.org/entity/Q26879782> <http://www.w3.org/2000/01/rdf-schema#label> "Louisville Cardinals men's basketball" .
+<http://www.wikidata.org/entity/Q1536851> <http://www.w3.org/2000/01/rdf-schema#label> "Tulsa Shock" .
+<http://www.wikidata.org/entity/Q169138> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q440324> .
+<http://www.wikidata.org/entity/Q5328707> <http://www.w3.org/2000/01/rdf-schema#label> "East Kentucky Miners" .
+<http://www.wikidata.org/entity/Q935157> <http://www.w3.org/2000/01/rdf-schema#label> "Maine Red Claws" .
+<http://www.wikidata.org/entity/Q16154307> <http://www.w3.org/2000/01/rdf-schema#label> "Army Black Knights women's basketball" .
+<http://www.wikidata.org/entity/Q4803748> <http://www.w3.org/2000/01/rdf-schema#label> "Asbury Park Boardwalkers" .
+<http://www.wikidata.org/entity/Q4998914> <http://www.w3.org/2000/01/rdf-schema#label> "Burke's Undertakers" .
+<http://www.wikidata.org/entity/Q4849303> <http://www.w3.org/2000/01/rdf-schema#label> "Bakersfield Jammers" .
+<http://www.wikidata.org/entity/Q981263> <http://www.w3.org/2000/01/rdf-schema#label> "Lawton-Fort Sill Cavalry" .
+<http://www.wikidata.org/entity/Q3175515> <http://www.w3.org/2000/01/rdf-schema#label> "Detroit Shock" .
+<http://www.wikidata.org/entity/Q1479748> <http://www.w3.org/2000/01/rdf-schema#label> "Houston Comets" .
+<http://www.wikidata.org/entity/Q513372> <http://www.w3.org/2000/01/rdf-schema#label> "Indianapolis Olympians" .
+<http://www.wikidata.org/entity/Q7419210> <http://www.w3.org/2000/01/rdf-schema#label> "Santa Barbara Breakers" .
+<http://www.wikidata.org/entity/Q19429124> <http://www.w3.org/2000/01/rdf-schema#label> "2014\u201315 Utah Utes women's basketball team" .
+<http://www.wikidata.org/entity/Q7101188> <http://www.w3.org/2000/01/rdf-schema#label> "Oregon Ducks men's basketball" .
+<http://www.wikidata.org/entity/Q161337> <http://www.w3.org/2000/01/rdf-schema#label> "Orlando Magic" .
+<http://www.wikidata.org/entity/Q7838608> <http://www.w3.org/2000/01/rdf-schema#label> "Trenton Tigers" .
+<http://www.wikidata.org/entity/Q6736539> <http://www.w3.org/2000/01/rdf-schema#label> "Maine Windjammers" .
+<http://www.wikidata.org/entity/Q1472697> <http://www.w3.org/2000/01/rdf-schema#label> "San Antonio Silver Stars" .
+<http://www.wikidata.org/entity/Q5472288> <http://www.w3.org/2000/01/rdf-schema#label> "Fort Wayne Hoosiers" .
+<http://www.wikidata.org/entity/Q5688332> <http://www.w3.org/2000/01/rdf-schema#label> "Hazleton Hawks" .
+<http://www.wikidata.org/entity/Q4852823> <http://www.w3.org/2000/01/rdf-schema#label> "Baltimore Clippers" .
+<http://www.wikidata.org/entity/Q3856893> <http://www.w3.org/2000/01/rdf-schema#label> "Michigan State Spartans men's basketball" .
+<http://www.wikidata.org/entity/Q4712826> <http://www.w3.org/2000/01/rdf-schema#label> "Albuquerque Silvers" .
+<http://www.wikidata.org/entity/Q5435095> <http://www.w3.org/2000/01/rdf-schema#label> "Fargo-Moorhead Beez" .
+<http://www.wikidata.org/entity/Q2320413> <http://www.w3.org/2000/01/rdf-schema#label> "St. Louis Bombers" .
+<http://www.wikidata.org/entity/Q13534228> <http://www.w3.org/2000/01/rdf-schema#label> "Portland Reign" .
+<http://www.wikidata.org/entity/Q172339> <http://www.w3.org/2000/01/rdf-schema#label> "New Orleans Pelicans" .
+<http://www.wikidata.org/entity/Q385469> <http://www.w3.org/2000/01/rdf-schema#label> "Albany Patroons" .
+<http://www.wikidata.org/entity/Q3425559> <http://www.w3.org/2000/01/rdf-schema#label> "Pittsburgh Rens" .
+<http://www.wikidata.org/entity/Q3901587> <http://www.w3.org/2000/01/rdf-schema#label> "Phoenix Eclipse" .
+<http://www.wikidata.org/entity/Q5461417> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q4739581> .
+<http://www.wikidata.org/entity/Q5120215> <http://www.w3.org/2000/01/rdf-schema#label> "Cincinnati Bearcats men's basketball" .
+<http://www.wikidata.org/entity/Q138089> <http://www.w3.org/2000/01/rdf-schema#label> "Philadelphia 76ers" .
+<http://www.wikidata.org/entity/Q6365004> <http://www.w3.org/2000/01/rdf-schema#label> "Kansas Jayhawks women's basketball" .
+<http://www.wikidata.org/entity/Q2334302> <http://www.w3.org/2000/01/rdf-schema#label> "Pittsburgh Xplosion" .
+<http://www.wikidata.org/entity/Q16197479> <http://www.w3.org/2000/01/rdf-schema#label> "High Point Panthers men's basketball" .
+<http://www.wikidata.org/entity/Q600353> <http://www.w3.org/2000/01/rdf-schema#label> "Reno Bighorns" .
+<http://www.wikidata.org/entity/Q3812865> <http://www.w3.org/2000/01/rdf-schema#label> "Kansas City Steers" .
+<http://www.wikidata.org/entity/Q7863945> <http://www.w3.org/2000/01/rdf-schema#label> "UCF Knights men's basketball" .
+<http://www.wikidata.org/entity/Q1474850> <http://www.w3.org/2000/01/rdf-schema#label> "Minnesota Lynx" .
+<http://www.wikidata.org/entity/Q169138> <http://www.w3.org/2000/01/rdf-schema#label> "Miami Heat" .
+<http://www.wikidata.org/entity/Q1067358> <http://www.w3.org/2000/01/rdf-schema#label> "Charlotte Sting" .
+<http://www.wikidata.org/entity/Q4895986> <http://www.w3.org/2000/01/rdf-schema#label> "Berwick Carbuilders" .
+<http://www.wikidata.org/entity/Q6689535> <http://www.w3.org/2000/01/rdf-schema#label> "Louisville Shooters" .
+<http://www.wikidata.org/entity/Q607805> <http://www.w3.org/2000/01/rdf-schema#label> "Gallitos de Isabela" .
+<http://www.wikidata.org/entity/Q6708480> <http://www.w3.org/2000/01/rdf-schema#label> "Lynchburg Legends" .
+<http://www.wikidata.org/entity/Q3497790> <http://www.w3.org/2000/01/rdf-schema#label> "Gary Steelheads" .
+<http://www.wikidata.org/entity/Q3875288> <http://www.w3.org/2000/01/rdf-schema#label> "New Mexico Slam" .
+<http://www.wikidata.org/entity/Q2354728> <http://www.w3.org/2000/01/rdf-schema#label> "Sheboygan Red Skins" .
+<http://www.wikidata.org/entity/Q5084135> <http://www.w3.org/2000/01/rdf-schema#label> "Charleston Gunners" .
+<http://www.wikidata.org/entity/Q4852796> <http://www.w3.org/2000/01/rdf-schema#label> "Baltimore Bullets" .
+<http://www.wikidata.org/entity/Q14947971> <http://www.w3.org/2000/01/rdf-schema#label> "Columbus Quest" .
+<http://www.wikidata.org/entity/Q5092394> <http://www.w3.org/2000/01/rdf-schema#label> "Cherry Hill Rookies" .
+<http://www.wikidata.org/entity/Q128109> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Bulls" .
+<http://www.wikidata.org/entity/Q6392428> <http://www.w3.org/2000/01/rdf-schema#label> "Kentucky Wildcats men's basketball" .
+<http://www.wikidata.org/entity/Q756160> <http://www.w3.org/2000/01/rdf-schema#label> "Atlanta Dream" .
+<http://www.wikidata.org/entity/Q5461408> <http://www.w3.org/2000/01/rdf-schema#label> "Florida Gators men's basketball" .
+<http://www.wikidata.org/entity/Q1438822> <http://www.w3.org/2000/01/rdf-schema#label> "Fort Wayne Mad Ants" .
+<http://www.wikidata.org/entity/Q128109> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q580808> .
+<http://www.wikidata.org/entity/Q2031044> <http://www.w3.org/2000/01/rdf-schema#label> "Orlando Miracle" .
+<http://www.wikidata.org/entity/Q1647839> <http://www.w3.org/2000/01/rdf-schema#label> "Rapid City Thrillers" .
+<http://www.wikidata.org/entity/Q166105> <http://www.w3.org/2000/01/rdf-schema#label> "Sacramento Kings" .
+<http://www.wikidata.org/entity/Q1933075> <http://www.w3.org/2000/01/rdf-schema#label> "Rio Grande Valley Vipers" .
+<http://www.wikidata.org/entity/Q7427252> <http://www.w3.org/2000/01/rdf-schema#label> "Sauk Valley Predators" .
+<http://www.wikidata.org/entity/Q7182734> <http://www.w3.org/2000/01/rdf-schema#label> "Philadelphia Lumberjacks" .
+<http://www.wikidata.org/entity/Q7009120> <http://www.w3.org/2000/01/rdf-schema#label> "New Jersey Americans" .
+<http://www.wikidata.org/entity/Q6117957> <http://www.w3.org/2000/01/rdf-schema#label> "Jacksonville Dolphins" .
+<http://www.wikidata.org/entity/Q1541588> <http://www.w3.org/2000/01/rdf-schema#label> "Sacramento Monarchs" .
+<http://www.wikidata.org/entity/Q1546693> <http://www.w3.org/2000/01/rdf-schema#label> "Pittsburgh Condors" .
+<http://www.wikidata.org/entity/Q2779033> <http://www.w3.org/2000/01/rdf-schema#label> "Minot SkyRockets" .
+<http://www.wikidata.org/entity/Q235326> <http://www.w3.org/2000/01/rdf-schema#label> "Seattle SuperSonics" .
+<http://www.wikidata.org/entity/Q5095651> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago Hustle" .
+<http://www.wikidata.org/entity/Q5599483> <http://www.w3.org/2000/01/rdf-schema#label> "Great Lakes Storm" .
+<http://www.wikidata.org/entity/Q5211285> <http://www.w3.org/2000/01/rdf-schema#label> "Dallas Chaparrals" .
+<http://www.wikidata.org/entity/Q116726> <http://www.w3.org/2000/01/rdf-schema#label> "Utah Stars" .
+<http://www.wikidata.org/entity/Q573543> <http://www.w3.org/2000/01/rdf-schema#label> "Idaho Stampede" .
+<http://www.wikidata.org/entity/Q204993> <http://www.w3.org/2000/01/rdf-schema#label> "Yakima Sun Kings" .
+<http://www.wikidata.org/entity/Q2378856> <http://www.w3.org/2000/01/rdf-schema#label> "Chicago American Gears" .
+<http://www.wikidata.org/entity/Q3154554> <http://www.w3.org/2000/01/rdf-schema#label> "Pittsburgh Ironmen" .
+<http://www.wikidata.org/entity/Q933763> <http://www.w3.org/2000/01/rdf-schema#label> "New York Renaissance" .
+<http://www.wikidata.org/entity/Q170558> <http://www.w3.org/2000/01/rdf-schema#label> "Minnesota Timberwolves" .
+<http://www.wikidata.org/entity/Q167253> <http://www.w3.org/2000/01/rdf-schema#label> "Portland Trail Blazers" .
+<http://www.wikidata.org/entity/Q4732074> <http://www.w3.org/2000/01/rdf-schema#label> "Allentown Rockets" .
+<http://www.wikidata.org/entity/Q3836624> <http://www.w3.org/2000/01/rdf-schema#label> "Long Beach Chiefs" .
+<http://www.wikidata.org/entity/Q169637> <http://www.w3.org/2000/01/rdf-schema#label> "Milwaukee Bucks" .
+<http://www.wikidata.org/entity/Q2113979> <http://www.w3.org/2000/01/rdf-schema#label> "Providence Steamrollers" .
+<http://www.wikidata.org/entity/Q162954> <http://www.w3.org/2000/01/rdf-schema#label> "Denver Nuggets" .
+<http://www.wikidata.org/entity/Q7080913> <http://www.w3.org/2000/01/rdf-schema#label> "Ohio State Buckeyes women's basketball" .
+<http://www.wikidata.org/entity/Q7164709> <http://www.w3.org/2000/01/rdf-schema#label> "Pensacola Tornados" .
+<http://www.wikidata.org/entity/Q3854531> <http://www.w3.org/2000/01/rdf-schema#label> "Memphis Houn'Dawgs" .
+<http://www.wikidata.org/entity/Q594656> <http://www.w3.org/2000/01/rdf-schema#label> "Cleveland Pipers" .
+<http://www.wikidata.org/entity/Q5461408> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q14472966> .
+<http://www.wikidata.org/entity/Q572134> <http://www.w3.org/2000/01/rdf-schema#label> "Brooklyn Nets" .
+<http://www.wikidata.org/entity/Q536458> <http://www.w3.org/2000/01/rdf-schema#label> "Cleveland Rockers" .
+<http://www.wikidata.org/entity/Q165529> <http://www.w3.org/2000/01/rdf-schema#label> "Memphis Grizzlies" .
+<http://www.wikidata.org/entity/Q957952> <http://www.w3.org/2000/01/rdf-schema#label> "Washington Capitols" .
+<http://www.wikidata.org/entity/Q164177> <http://www.w3.org/2000/01/rdf-schema#label> "Phoenix Suns" .
+<http://www.wikidata.org/entity/Q1329633> <http://www.w3.org/2000/01/rdf-schema#label> "Los Angeles Sparks" .
+<http://www.wikidata.org/entity/Q5461417> <http://www.w3.org/2000/01/rdf-schema#label> "Florida Gators women's basketball" .
+<http://www.wikidata.org/entity/Q5161579> <http://www.w3.org/2000/01/rdf-schema#label> "Connecticut Pride" .
+<http://www.wikidata.org/entity/Q157376> <http://www.wikidata.org/prop/direct/P286> <http://www.wikidata.org/entity/Q523630> .
+<http://www.wikidata.org/entity/Q29093869> <http://www.w3.org/2000/01/rdf-schema#label> "Cincinnati Slammers" .
+<http://www.wikidata.org/entity/Q4791430> <http://www.w3.org/2000/01/rdf-schema#label> "Arizona State Sun Devils men's basketball" .
+<http://www.wikidata.org/entity/Q864203> <http://www.w3.org/2000/01/rdf-schema#label> "Utah Eagles" .
+<http://www.wikidata.org/entity/Q3344217> <http://www.w3.org/2000/01/rdf-schema#label> "Anchorage Northern Knights" .
+<http://www.wikidata.org/entity/Q1647877> <http://www.w3.org/2000/01/rdf-schema#label> "Grand Rapids Hoops" .
+<http://www.wikidata.org/entity/Q4816344> <http://www.w3.org/2000/01/rdf-schema#label> "Atlantic City Hi-Rollers" .
+<http://www.wikidata.org/entity/Q170329> <http://www.w3.org/2000/01/rdf-schema#label> "Indiana Pacers" .
+<http://www.wikidata.org/entity/Q432084> <http://www.w3.org/2000/01/rdf-schema#label> "Michigan Mayhem" .
+<http://www.wikidata.org/entity/Q4791397> <http://www.w3.org/2000/01/rdf-schema#label> "Arizona Scorpions" .
+<http://www.wikidata.org/entity/Q7186884> <http://www.w3.org/2000/01/rdf-schema#label> "Phoenix Fury" .
+<http://www.wikidata.org/entity/Q4791312> <http://www.w3.org/2000/01/rdf-schema#label> "Arizona Flame" .
+<http://www.wikidata.org/entity/Q1647858> <http://www.w3.org/2000/01/rdf-schema#label> "Rockford Lightning" .
+<http://www.wikidata.org/entity/Q4911964> <http://www.w3.org/2000/01/rdf-schema#label> "Billings Volcanos" .
+<http://www.wikidata.org/entity/Q7569394> <http://www.w3.org/2000/01/rdf-schema#label> "Southeast Texas Mavericks" .
+<http://www.wikidata.org/entity/Q6117971> <http://www.w3.org/2000/01/rdf-schema#label> "Jacksonville Giants" .
+<http://www.wikidata.org/entity/Q17059313> <http://www.w3.org/2000/01/rdf-schema#label> "Dakota Wizards" .
+<http://www.wikidata.org/entity/Q864263> <http://www.w3.org/2000/01/rdf-schema#label> "Butte Daredevils" .
+<http://www.wikidata.org/entity/Q3314890> <http://www.w3.org/2000/01/rdf-schema#label> "Scranton Miners" .
+

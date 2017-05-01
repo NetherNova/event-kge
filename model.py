@@ -381,7 +381,7 @@ def skipgram_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     nce_weights = tf.Variable(
         tf.truncated_normal([vocab_size, embedding_size],
                                 stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-    nce_biases = tf.Variable(tf.zeros([vocab_size]))
+    nce_biases = tf.Variable(tf.truncated_normal([vocab_size]))
 
     skipgram_loss = tf.reduce_mean(
         tf.nn.nce_loss(weights=nce_weights,
@@ -422,22 +422,33 @@ def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     W = tf.Variable(
         tf.truncated_normal([vocab_size, embedding_size],
                             stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-    bias = tf.Variable(tf.zeros([vocab_size]))
+    bias = tf.Variable(tf.truncated_normal([vocab_size]))
 
     # [batch_size, num_steps, embedding_size] into list of [batch_size, embedding_size]
     event_list = tf.unstack(embed, axis=1)
     cell = tf.nn.rnn_cell.LSTMCell(embedding_size)
     outputs, state = tf.nn.rnn(cell, event_list, dtype=tf.float32)
-    embed_context = state[1]  # take last state only
+    embed_context = state[1]  # take last hidden state (h) state[0] = (cell state c)
 
-    loss = tf.reduce_mean(
-        tf.nn.nce_loss(weights=W,
-                       biases=bias,
-                       labels=train_labels,
-                       inputs=embed_context,
-                       num_sampled=num_sampled,
-                       num_classes=vocab_size,
-                       remove_accidental_hits=True))
+    logits = tf.matmul(embed_context, tf.transpose(W)) + bias
+    loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits, tf.reshape(train_labels, [-1])))
+    return loss
+
+
+def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    W = tf.Variable(
+        tf.truncated_normal([vocab_size, embedding_size],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+    bias = tf.Variable(tf.truncated_normal([vocab_size]))
+
+    # [batch_size, num_steps, embedding_size] into list of [batch_size, embedding_size]
+    event_list = tf.unstack(embed, axis=1)
+    cell = tf.nn.rnn_cell.BasicRNNCell(embedding_size)
+    outputs, state = tf.nn.rnn(cell, event_list, dtype=tf.float32)
+    embed_context = state  # take last hidden state
+
+    logits = tf.matmul(embed_context, tf.transpose(W)) + bias
+    loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits, tf.reshape(train_labels, [-1])))
     return loss
 
 
@@ -453,22 +464,22 @@ def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_lab
     :return:
     """
     # TODO: sequence number as paragraph id?
-    W_seq = tf.Variable(tf.truncated_normal([num_sequences, embedding_size]))
+    # W_seq = tf.Variable(tf.truncated_normal([num_sequences, embedding_size]))
 
     sequence_ids, train_labels = tf.split(1, 2, train_labels)     # TODO: extract first index as sequence index
 
-    sequence_vectors = tf.squeeze(tf.nn.embedding_lookup(W_seq, sequence_ids), axis=1)
+    #sequence_vectors = tf.squeeze(tf.nn.embedding_lookup(W_seq, sequence_ids), axis=1)
 
     embed_context = tf.reshape(embed, [embed.get_shape()[0].value, embed.get_shape()[1].value * embedding_size])
 
-    embed_context = tf.concat_v2([embed_context, sequence_vectors], axis=1)
+    #embed_context = tf.concat_v2([embed_context, sequence_vectors], axis=1)
 
     #embed_context = tf.Print(embed_context.get_shape(),[embed_context], "context: ")
 
     W = tf.Variable(
         tf.truncated_normal([vocab_size, embed_context.get_shape()[1].value],
                             stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-    bias = tf.Variable(tf.zeros([vocab_size]))
+    bias = tf.Variable(tf.truncated_normal([vocab_size]))
 
     # Softmax of concatenated vectors
     loss = tf.reduce_mean(
@@ -482,8 +493,7 @@ def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_lab
     return loss
 
 
-
-def weighted_matrix_factorization():
+def weighted_matrix_factorization(X):
     with tf.Session() as sess:
         X_norm = (X - X.min()) / (X.max() - X.min())
         X_norm_np = np.array(X_norm)
@@ -520,6 +530,25 @@ def ranking_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, r
         scores_r[i, rmv_idx_r] = -np.inf
         errr += [np.argsort(np.argsort(-scores_r[i, :]))[r] + 1]
     return errl, errr
+
+
+def insight_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, right_ind, r_ent_dict, r_rel_dict):
+    for i, (l, o, r) in enumerate(
+            zip(left_ind, o_ind, right_ind)):
+        # find those triples that have <*,o,r> and * != l
+        rmv_idx_l = [l_rmv for (l_rmv, rel, rhs) in filter_triples if
+                     rel == o and r == rel and l_rmv != l]
+        # *l* is the correct index
+        scores_l[i, rmv_idx_l] = -np.inf
+        top_ents_l = np.argsort(-scores_l[i, :])[:10]
+        # since index start at 0, best possible value is 1
+        rmv_idx_r = [r_rmv for (lhs, rel, r_rmv) in filter_triples if
+                     rel == o and lhs == l and r_rmv != r]
+        # *l* is the correct index
+        scores_r[i, rmv_idx_r] = -np.inf
+        top_ents_r = np.argsort(-scores_r[i, :])[:10]
+        print r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Left Recommendations: ", [r_ent_dict[left] for left in top_ents_l]
+        print r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Right Recommendations: ", [r_ent_dict[left] for left in top_ents_r]
 
 
 class EarlyStoppingMonitor(object):

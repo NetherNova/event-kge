@@ -5,7 +5,7 @@ from model import dot, max_margin, dot_similarity, skipgram_loss, lstm_loss, con
 
 class TransEve(object):
     def __init__(self, num_entities, num_relations, embedding_size, seq_embeddings_size, batch_size_kg, batch_size_sg,
-                 num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr=None, init_lr=1.0,
+                 num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, init_lr=1.0,
                  event_layer="Skipgram", lambd=None, subclass_constr=None, num_sequences=None, num_events=None):
         """
         TransE plus linear transformation of sequential embeddings
@@ -32,7 +32,6 @@ class TransEve(object):
         self.rightop = rightop
         self.fnsim = fnsim
         self.zero_elements = zero_elements
-        self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.event_layer = event_layer
         self.lambd = lambd
@@ -153,11 +152,6 @@ class TransEve(object):
         self.loss = kg_loss
 
         mu = tf.constant(1.0)
-
-        if self.sub_prop_constr:
-            sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
-            sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
-            self.loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
 
         if len(self.subclass_constr) > 0:
             subclass_types = tf.nn.embedding_lookup(self.E, self.subclass_constr[:,0])

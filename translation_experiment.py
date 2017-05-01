@@ -1,11 +1,11 @@
 import numpy as np
 import pickle
-from rdflib import ConjunctiveGraph, RDF, RDFS, OWL, URIRef
-from etl import update_ontology, prepare_sequences, message_index, get_merged_dataframe, get_unique_entities, read_ontology, load_text_file
+from rdflib import ConjunctiveGraph, RDF, RDFS, OWL, URIRef, Literal
+from etl import update_ontology, prepare_sequences, message_index, get_merged_dataframe, get_unique_entities, read_ontology, load_text_file, prepare_sequences_nba
 from sklearn.manifold import TSNE
 import csv
 import itertools
-from model import dot_similarity, trans, ident_entity, l2_similarity
+from model import trans, ident_entity, l2_similarity
 from TransE import TransE
 from TransEve import TransEve
 from TransH import TransH
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import tensorflow as tf
 from collections import defaultdict
-from model import ranking_error_triples
+from model import ranking_error_triples, insight_error_triples
 from pre_training import EmbeddingPreTrainer
 
 
@@ -60,6 +60,7 @@ class SkipgramBatchGenerator(object):
         return batch_x, batch_y
 
 
+#TODO: complete sequence predictor (class label for each time step)
 class PredictiveEventBatchGenerator(object):
     def __init__(self, sequences, num_skips, batch_size, include_seq_ids=False):
         """
@@ -346,23 +347,38 @@ class TranslationModels:
         return name
 
 # PATH PARAMETERS
-base_path = "./test_data/"
+base_path = "./nba_data/"
 path_to_store_model = base_path + "Embeddings/"
 path_to_events = base_path + "Sequences/" # TODO: should be optional if no skipgram stuff
 path_to_schema = base_path + "Ontology/manufacturing_schema.rdf" # TODO: also optional if no schema present
-path_to_kg = base_path + "Ontology/amberg_inferred.xml"   # "./test_data/amberg_inferred.xml"
+path_to_kg = base_path + "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
 path_to_store_sequences = base_path + "Sequences/"
 path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
-public_data = False
-train_path = "./wn18/train_reduced.txt"
-valid_path = "./wn18/valid_reduced.txt"
-test_path = "./wn18/test_reduced.txt"
-
+nba_data = True
+path_to_nba_sequence = base_path + "Sequences/sequences.txt"
 num_sequences = None
+pre_train = False
+supp_event_embeddings = None    # base_path + Embeddings/supplied_embeddings_60.pickle"
 
-if not public_data:
-    max_events = 5000
+if nba_data:
+    g = ConjunctiveGraph()
+    g.load(path_to_kg, format="nt")
+    ex_preds = (URIRef('http://www.wikidata.org/prop/direct/P69'), URIRef('http://www.wikidata.org/prop/direct/P1411'),
+                RDFS.label)
+    max_triples = 20000
+    for i, (s,p,o) in enumerate(g.triples((None, None, None))):
+        if p in ex_preds or i > max_triples:
+            g.remove((s,p,o))
+    with open(base_path + "unique_ents2.txt", "rb") as f:
+        ent_dict = dict([(line.split(',')[0], int(line.split(',')[1].strip())) for line in f])
+        unique_msgs = ent_dict.copy()
+    vocab_size = max(ent_dict.values()) + 1
+    ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
+    print "After update: %d Number of triples: " % len(g)
+    subclass_info = []
+else:
+    max_events = None
     # sequence window size in minutes
     window_size = 3
     merged = get_merged_dataframe(path_to_events, max_events)
@@ -379,57 +395,39 @@ if not public_data:
     vocab_size = len(unique_msgs)
 
 # Hyper-Parameters
-model_type = TranslationModels.RESCAL
+model_type = TranslationModels.Trans_E
 bernoulli = True
-# "Skipgram", "Concat", "LSTM"
+# "Skipgram", "Concat", "LSTM", "RNN"
 event_layer = "Skipgram"
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [60]
+param_dict['embedding_size'] = [50]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [128]     # [32, 64, 128]
+param_dict['batch_size'] = [64]     # [32, 64, 128]
 param_dict['learning_rate'] = [1.0]     # [0.5, 0.8, 1.0]
 param_dict['lambd'] = [0.0001]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
 eval_step_size = 100
+num_epochs = 100
 test_proportion = 0.2
 validation_proportion = 0.1
 fnsim = l2_similarity
 leftop = trans
 rightop = ident_entity
-supp_event_embeddings = "./Embeddings/supplied_embeddings_60.pickle"
-pre_train = True
-sub_prop_constr = False
 
 # SKIP Parameters
 if event_layer is not None:
-    param_dict['num_skips'] = [4]   # [2, 4]
+    param_dict['num_skips'] = [1]   # [2, 4]
     param_dict['num_sampled'] = [10]     # [5, 9]
-    param_dict['batch_size_sg'] = [128]     # [128, 512]
-    num_sequences = prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index, unique_msgs,
-                                      window_size)
+    param_dict['batch_size_sg'] = [64]     # [128, 512]
+    if nba_data:
+        num_sequences = prepare_sequences_nba(path_to_nba_sequence, path_to_store_sequences + sequence_file_name)
+    else:
+        num_sequences = prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index,
+                                          unique_msgs, window_size)
+        merged = None   # Free some memory
 
-if public_data:
-    print "Loading from text files"
-    g_train = load_text_file(train_path)
-    g_valid = load_text_file(valid_path)
-    g_test = load_text_file(test_path)
-    print "Merging graphs"
-    g = ConjunctiveGraph()
-    for s,p,o in g_train.triples((None, None, None)):
-        g.add((s,p,o))
-    for s, p, o in g_valid.triples((None, None, None)):
-        g.add((s, p, o))
-    for s, p, o in g_test.triples((None, None, None)):
-        g.add((s, p, o))
-    print "Updating graph"
-    ent_dict = {}
-    ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
-    vocab_size = 0
-    subclass_info = []
-    unique_msgs = {}
-else:
-    g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion)
+g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion)
 train_size = len(g_train)
 valid_size = len(g_valid)
 test_size = len(g_test)
@@ -461,7 +459,7 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
     param_combs = cross_parameter_eval(param_dict)
     for comb_num, tmp_param_dict in enumerate(param_combs):
         params = Parameters(**tmp_param_dict)
-        num_steps = (2345 / params.batch_size) * 100
+        num_steps = (train_size / params.batch_size) * num_epochs
         print "Progress: %d prct" %(int((100.0 * comb_num) / len(param_combs)))
         print "Embedding size: ", params.embedding_size
         print "Batch size: ", params.batch_size
@@ -485,7 +483,7 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                 pre_trainer.save()
             if event_layer == "Skipgram":
                 sg = SkipgramBatchGenerator(sequences, num_skips, batch_size_sg)
-            elif event_layer == "LSTM":
+            elif event_layer in ["LSTM", "RNN"]:
                 sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg)
             elif event_layer == "Concat":
                 sg = PredictiveEventBatchGenerator(sequences, num_skips, batch_size_sg, True)
@@ -500,23 +498,23 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
         # Model Selection
         if model_type == TranslationModels.Trans_E:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
-                          batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, sub_prop_constr,
-                          params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences, num_skips]
+                          batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, params.learning_rate,
+                          event_layer, params.lambd, subclass_info, num_sequences, num_skips]
             model = TransE(*param_list)
         elif model_type == TranslationModels.Trans_Eve:
             zero_elements = np.array([i for i in range(num_entities) if i not in unique_msgs.values()])
             param_list = [num_entities, num_relations, params.embedding_size, params.embedding_size, params.batch_size,
-                          batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements, sub_prop_constr,
+                          batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, zero_elements,
                           params.learning_rate, event_layer, params.lambd, subclass_info, num_sequences, num_skips]
             model = TransEve(*param_list)
         elif model_type == TranslationModels.Trans_H:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
-                          batch_size_sg, num_sampled, vocab_size, sub_prop_constr, params.learning_rate, event_layer,
+                          batch_size_sg, num_sampled, vocab_size, params.learning_rate, event_layer,
                           params.lambd, subclass_info, num_sequences, num_skips]
             model = TransH(*param_list)
         elif model_type == TranslationModels.RESCAL:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
-                          batch_size_sg, num_sampled, vocab_size, sub_prop_constr, params.learning_rate, event_layer,
+                          batch_size_sg, num_sampled, vocab_size, params.learning_rate, event_layer,
                           params.lambd, subclass_info, num_sequences, num_skips]
             model = RESCAL(*param_list)
 
@@ -635,9 +633,8 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                     relation_embs = [session.run(model.R)]
 
             reverse_entity_dictionary = dict(zip(ent_dict.values(), ent_dict.keys()))
-            if not public_data:
-                for msg_name, msg_id in unique_msgs.iteritems():
-                    reverse_entity_dictionary[msg_id] = msg_name
+            for msg_name, msg_id in unique_msgs.iteritems():
+                reverse_entity_dictionary[msg_id] = msg_name
             reverse_relation_dictionary = dict(zip(rel_dict.values(), rel_dict.keys()))
             # save embeddings to disk
             if store_embeddings:
@@ -700,6 +697,8 @@ with tf.Session() as session:
 
     errl, errr = ranking_error_triples(filter_triples, scores_l, scores_r, test_inpl, test_inpo, test_inpr)
 
+    #insight_error_triples(filter_triples, scores_l, scores_r, test_inpl, test_inpo, test_inpr, reverse_entity_dictionary,
+    #                      reverse_relation_dictionary)
 # END OF SESSION
 err_arr = np.asarray(errl + errr)
 hits_10 = np.mean(err_arr <= 10) * 100

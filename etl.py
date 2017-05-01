@@ -90,13 +90,6 @@ def read_ontology(path, format='xml'):
     g.load(path, format=format)
     for s,p,o in g.triples((None, URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'), None)):
         g.remove((s,p,o))
-    # TODO: filter out noisy events (e.g. Literals)
-    # remove not needed triples
-    # for (s,p,o) in g.triples((None, None, None)):
-    #     if p == URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'):
-    #         g.remove((s,p,o))
-    #     if o == OWL["NamedIndividual"]:
-    #         g.remove((s, p, o))
     return g
 
 
@@ -124,6 +117,9 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
     :param data:
     :return:
     """
+    ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
+    ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
+    ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
     entity_uri_to_data_id = dict()
     for msg, id in msg_dict.iteritems():
         fe_or_module_id = None
@@ -141,13 +137,10 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
         entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
         if "Stau" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
-            ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
         elif "Achse" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
-            ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
         elif "F?llstand" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
-            ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
     return ont, entity_uri_to_data_id
 
 
@@ -292,6 +285,27 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     pickle.dump(result, open(path_to_file + ".pickle", "wb"))
     reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
     pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
+    print "Processed %d sequences" %(len(result))
+    return len(result)
+
+
+def prepare_sequences_nba(path_to_input, path_to_output):
+    """
+    Dumps pickle for sequences and dictionary
+    :param data_frame:
+    :param file_name:
+    :param index:
+    :param classification_event:
+    :return:
+    """
+    with open(path_to_input, "rb") as f:
+        result = []
+        for line in f:
+            entities = line.split(',')
+            result.append([int(e.strip()) for e in entities])
+    print "Preparing sequential data..."
+    print result[:10]
+    pickle.dump(result, open(path_to_output + ".pickle", "wb"))
     print "Processed %d sequences" %(len(result))
     return len(result)
 

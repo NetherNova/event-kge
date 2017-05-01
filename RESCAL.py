@@ -7,7 +7,7 @@ from scipy.special import expit
 
 class RESCAL(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, sub_prop_constr=None, init_lr=1.0, event_layer="Skipgram", lambd=None,
+                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None,
                  subclass_constr=None, num_sequences=None, num_events=None):
         """
         RESCAL with max-margin loss (not Alternating least-squares)
@@ -26,7 +26,6 @@ class RESCAL(object):
         self.num_sampled = num_sampled
         self.batch_size_kg = batch_size_kg
         self.batch_size_sg = batch_size_sg
-        self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.lambd = lambd
         self.event_layer = event_layer
@@ -99,11 +98,6 @@ class RESCAL(object):
         kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(self.E) + tf.nn.l2_loss(self.R))
 
         self.loss = kg_loss
-
-        if self.sub_prop_constr:
-            sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
-            sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
-            self.loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
 
         mu = tf.constant(1.0)
 
