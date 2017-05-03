@@ -1,12 +1,14 @@
 import tensorflow as tf
 import numpy as np
-from model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, rescal_similarity
+from model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, \
+    rescal_similarity, lstm_loss, concat_window_loss
 from scipy.special import expit
 
 
 class RESCAL(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
+                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None,
+                 subclass_constr=None, num_sequences=None, num_events=None):
         """
         RESCAL with max-margin loss (not Alternating least-squares)
         :param num_entities:
@@ -24,10 +26,12 @@ class RESCAL(object):
         self.num_sampled = num_sampled
         self.batch_size_kg = batch_size_kg
         self.batch_size_sg = batch_size_sg
-        self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
-        self.skipgram = skipgram
         self.lambd = lambd
+        self.event_layer = event_layer
+        self.subclass_constr = subclass_constr
+        self.num_sequences = num_sequences
+        self.num_events = num_events
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
         lhs = ent_embs
@@ -93,23 +97,37 @@ class RESCAL(object):
         simin = tf.nn.sigmoid(tf.reduce_sum(tf.mul(lhsn, rhsn), 1))
         kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(self.E) + tf.nn.l2_loss(self.R))
 
-        if self.sub_prop_constr:
-            sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
-            sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
-            kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
+        self.loss = kg_loss
 
-        # Skipgram Model
-        self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
-        self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+        mu = tf.constant(1.0)
 
-        sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-
-        sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
-
-        if self.skipgram:
-            self.loss = kg_loss + sg_loss
+        if self.event_layer == "Skipgram":
+            # Skipgram Model
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+            sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
+            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
+                                    self.train_labels)
+            self.loss += mu * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
+        elif self.event_layer == "LSTM":
+            self.train_inputs = tf.placeholder(tf.int32,
+                                               shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
+            concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
+            self.loss += mu * concat_loss
+        elif self.event_layer == "Concat":
+            self.train_inputs = tf.placeholder(tf.int32,
+                                               shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 2])
+            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
+            concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,
+                                             self.train_labels, self.num_sequences)
+            self.loss += mu * concat_loss
         else:
-            self.loss = kg_loss
+            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
         # tf.train.exponential_decay(starter_learning_rate, global_step, 10, 0.98, staircase=True)

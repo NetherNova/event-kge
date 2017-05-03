@@ -6,7 +6,7 @@ import pickle
 
 class TransH(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, sub_prop_constr=None, init_lr=1.0, skipgram=True, lambd=None):
+                 vocab_size, init_lr=1.0, skipgram=True, lambd=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransH)
         :param num_entities:
@@ -24,7 +24,6 @@ class TransH(object):
         self.num_sampled = num_sampled
         self.batch_size_kg = batch_size_kg
         self.batch_size_sg = batch_size_sg
-        self.sub_prop_constr = sub_prop_constr
         self.init_lr = init_lr
         self.skipgram = skipgram
         self.lambd = lambd
@@ -112,11 +111,6 @@ class TransH(object):
         reg2 = tf.reduce_sum(tf.maximum(0., (reg2_z / reg2_n) - epsilon))
 
         kg_loss = max_margin(simi, simin) + self.lambd * (reg1 + reg2)
-
-        if self.sub_prop_constr:
-            sub_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sub"])
-            sup_relations = tf.nn.embedding_lookup(self.R, self.sub_prop_constr["sup"])
-            kg_loss += tf.reduce_sum(dot(sub_relations, sup_relations) - 1)
 
         # Skipgram Model
         self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
