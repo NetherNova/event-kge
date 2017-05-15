@@ -289,7 +289,7 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     return len(result)
 
 
-def prepare_sequences_nba(path_to_input, path_to_output):
+def prepare_sequences_traffic(path_to_input, path_to_output, unique_msgs):
     """
     Dumps pickle for sequences and dictionary
     :param data_frame:
@@ -302,7 +302,7 @@ def prepare_sequences_nba(path_to_input, path_to_output):
         result = []
         for line in f:
             entities = line.split(',')
-            result.append([int(e.strip()) for e in entities])
+            result.append([int(e.strip()) for e in entities if int(e.strip()) in unique_msgs.values()])
     print "Preparing sequential data..."
     print result[:10]
     pickle.dump(result, open(path_to_output + ".pickle", "wb"))
