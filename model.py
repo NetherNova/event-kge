@@ -58,6 +58,7 @@ def max_margin(pos, neg, marge=1.0):
 def rescal_similarity():
     pass
 
+
 def normalize(W):
     return W / tf.expand_dims(tf.sqrt(tf.reduce_sum(W ** 2, axis=1)), 1)
 
@@ -409,6 +410,14 @@ def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     logits = tf.matmul(embed_context, tf.transpose(W)) + bias
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits, tf.reshape(train_labels, [-1])))
     return loss
+
+
+def composition_rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    W = tf.Variable(
+        tf.truncated_normal([vocab_size, embedding_size],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+
+
 
 
 def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):

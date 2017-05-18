@@ -19,7 +19,7 @@ from pre_training import EmbeddingPreTrainer
 import operator
 
 
-rnd = np.random.RandomState(25)
+rnd = np.random.RandomState(24)
 
 
 class SkipgramBatchGenerator(object):
@@ -113,7 +113,7 @@ class TripleBatchGenerator(object):
         self.ent_array = np.array(self.entity_dictionary.values())
         self.ids_in_ent_dict = dict(zip(self.ent_array, range(0, len(self.ent_array))))
 
-        for (s, p, o) in triples:
+        for (s, p, o) in sorted(triples):
             s = unicode(s)
             p = unicode(p)
             o = unicode(o)
@@ -231,21 +231,21 @@ def update_entity_relation_dictionary(ontology, ent_dict):
     rel_dict = {}
     ent_counter = 0
     fixed_ids = [id for id in ent_dict.values()]
-    for h in ontology.subjects(None, None):
+    for h in sorted(ontology.subjects(None, None)):
         uni_h = unicode(h)
         if uni_h not in ent_dict:
             while ent_counter in fixed_ids:
                 ent_counter += 1
             ent_dict.setdefault(uni_h, ent_counter)
             ent_counter += 1
-    for t in ontology.objects(None, None):
+    for t in sorted(ontology.objects(None, None)):
         uni_t = unicode(t)
         if uni_t not in ent_dict:
             while ent_counter in fixed_ids:
                 ent_counter += 1
             ent_dict.setdefault(uni_t, ent_counter)
             ent_counter += 1
-    for r in ontology.predicates(None, None):
+    for r in sorted(ontology.predicates(None, None)):
         uni_r = unicode(r)
         if uni_r not in rel_dict:
             rel_dict.setdefault(uni_r, len(rel_dict))
@@ -374,7 +374,7 @@ def evaluate_on_test(model_type, parameter_list, test_tg, save_path):
             scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs, w_embs)
         else:
             if len(subclass_info) > 0:
-                r_embs, embs, c_embs = session.run([model.R, model.E, model.C], feed_dict={})
+                r_embs, embs, c_embs = session.run([model.R, model.E, model.w], feed_dict={})
                 scores_l = model.rank_left_idx_new(test_inpr, test_inpo, r_embs, embs, c_embs, test_inpc)
                 scores_r = model.rank_right_idx_new(test_inpl, test_inpo, r_embs, embs, c_embs, test_inpc)
             else:
@@ -441,22 +441,40 @@ class TranslationModels:
         return name
 
 # PATH PARAMETERS
-base_path = "./sensor_data/"
+base_path = "./sim_data/"
 path_to_store_model = base_path + "Embeddings/"
 path_to_events = base_path + "Sequences/" # TODO: should be optional if no skipgram stuff
-path_to_schema = "" # base_path + "Ontology/manufacturing_schema.rdf" # TODO: also optional if no schema present
-path_to_kg = base_path + "Ontology/amberg_inferred_v2.xml" # "Ontology/traffic_individuals.xml" # "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
+path_to_schema = base_path + '' #"Ontology/manufacturing_schema.rdf" # TODO: also optional if no schema present
+path_to_kg = base_path + 'Ontology/test_2.xml' #"Ontology/amberg_inferred_v2.xml"  # "Ontology/traffic_individuals.xml" # "Ontology/traffic_individuals.xml" # "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
 path_to_store_sequences = base_path + "Sequences/"
 path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
 traffic_data = False
-path_to_traffic_sequence = base_path + "Sequences/sequence.txt"
+sim_data = True
+path_to_traffic_sequence = base_path + 'Sequences/sequence_2.txt' #"Sequences/sequence.txt"
 num_sequences = None
 pre_train = False
 supp_event_embeddings = None    # base_path + Embeddings/supplied_embeddings_60.pickle"
 cross_eval_single = True
 
-if traffic_data:
+if sim_data:
+    g = ConjunctiveGraph()
+    g.load(path_to_kg, format="xml")
+    with open(base_path + "unique_msgs2.txt", "rb") as f:
+        ent_dict = dict()
+        for line in f:
+            ent_dict[line.split(',')[0]] = int(line.split(',')[1].strip())
+    sorted_ent_dict = sorted(ent_dict.items(), key=operator.itemgetter(1), reverse=False)
+    new_ent_dict = dict()
+    for item in sorted_ent_dict:
+        new_ent_dict[item[0]] = item[1]
+    ent_dict = new_ent_dict
+    unique_msgs = ent_dict.copy()
+    vocab_size = len(ent_dict)
+    ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
+    print "After update: %d Number of triples: " % len(g)
+    subclass_info = []
+elif traffic_data:
     g = ConjunctiveGraph()
     g.load(path_to_kg, format="xml")
     with open(base_path + "unique_msgs.txt", "rb") as f:
@@ -481,11 +499,11 @@ if traffic_data:
     vocab_size = len(ent_dict)
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     print "After update: %d Number of triples: " % len(g)
-    # _, subclass_info = parse_axioms(g, ent_dict, rel_dict)
-    # class_hierarchy = class_hierarchy_map(subclass_info)
+    #_, subclass_info = parse_axioms(g, ent_dict, rel_dict)
+    #class_hierarchy = class_hierarchy_map(subclass_info)
     subclass_info = []
 else:
-    max_events = 5000
+    max_events = 20000
     # sequence window size in minutes
     window_size = 3
     merged = get_merged_dataframe(path_to_events, max_events)
@@ -496,26 +514,30 @@ else:
     g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
     print "After update: %d Number of triples: " % len(g)
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
-    #g_schema = read_ontology(path_to_schema)
+    g_schema = read_ontology(path_to_schema)
     #_, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
     #class_hierarchy = class_hierarchy_map(subclass_info)
     subclass_info = []
     vocab_size = len(unique_msgs)
 
+# Sequence - correlation between events --> clusters modules of similar events together
+# Alpha to prevent overfitting to sequence data [need to test]
+
 # Hyper-Parameters
 model_type = TranslationModels.Trans_E
 bernoulli = True
 # "Skipgram", "Concat", "LSTM", "RNN"
-event_layer = 'Skipgram'
+event_layer = None
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [40, 60, 80, 120]
+param_dict['embedding_size'] = [10, 20, 30]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [32, 64, 128]     # [32, 64, 128]
-param_dict['learning_rate'] = [0.01, 0.1, 0.5]     # [0.5, 0.8, 1.0]
-param_dict['lambd'] = [0.01]
+param_dict['batch_size'] = [16]     # [32, 64, 128]
+param_dict['learning_rate'] = [0.1, 0.2, 0.05]     # [0.5, 0.8, 1.0]
+param_dict['lambd'] = [1.0] # [0.5, 0.1, 0.05]
+param_dict['alpha'] = [0.1, 0.5, 1.0]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-eval_step_size = 200
+eval_step_size = 100
 num_epochs = 100
 test_proportion = 0.2
 validation_proportion = 0.1
@@ -525,10 +547,13 @@ rightop = ident_entity
 
 # SKIP Parameters
 if event_layer is not None:
-    param_dict['num_skips'] = [2, 3, 5, 9, 14]   # [2, 4]
+    param_dict['num_skips'] = [2, 3, 4, 5]   # [2, 4]
     param_dict['num_sampled'] = [10]     # [5, 9]
-    param_dict['batch_size_sg'] = [32, 64, 128]     # [128, 512]
-    if traffic_data:
+    param_dict['batch_size_sg'] = [64]     # [128, 512]
+    if sim_data:
+        num_sequences = prepare_sequences_traffic(path_to_traffic_sequence,
+                                                  path_to_store_sequences + sequence_file_name, unique_msgs)
+    elif traffic_data:
         num_sequences = prepare_sequences_traffic(path_to_traffic_sequence, path_to_store_sequences + sequence_file_name, unique_msgs)
     else:
         num_sequences = prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index,
@@ -564,6 +589,8 @@ if event_layer:
 train_tg = TripleBatchGenerator(g_train, ent_dict, rel_dict, 2, bern_probs=bern_probs)
 valid_tg = TripleBatchGenerator(g_valid, ent_dict, rel_dict, 1, sample_negative=False)
 test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, sample_negative=False)
+
+print train_tg.next(10)
 
 # Loop trough all hyper-paramter combinations
 param_combs = cross_parameter_eval(param_dict)
@@ -606,7 +633,7 @@ for comb_num, tmp_param_dict in enumerate(param_combs):
     if model_type == TranslationModels.Trans_E:
         param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
                       batch_size_sg, num_sampled, vocab_size, leftop, rightop, fnsim, params.learning_rate,
-                      event_layer, params.lambd, subclass_info, num_sequences, num_skips]
+                      event_layer, params.lambd, subclass_info, num_sequences, num_skips, params.alpha]
         model = TransE(*param_list)
     elif model_type == TranslationModels.Trans_Eve:
         zero_elements = np.array([i for i in range(num_entities) if i not in unique_msgs.values()])
@@ -709,7 +736,8 @@ for comb_num, tmp_param_dict in enumerate(param_combs):
                     scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs, w_embs)
                 else:
                     if len(subclass_info) > 0:
-                        r_embs, embs, c_embs = session.run([model.R, model.E, model.C], feed_dict={})
+                        r_embs, embs, c_embs = session.run([model.R, model.E, model.w], feed_dict={})
+                        print "w: ", c_embs
                         scores_l = model.rank_left_idx_new(valid_inpr, valid_inpo, r_embs, embs, c_embs, valid_inpc)
                         scores_r = model.rank_right_idx_new(valid_inpl, valid_inpo, r_embs, embs, c_embs, valid_inpc)
                     else:
