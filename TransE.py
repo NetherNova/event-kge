@@ -106,7 +106,7 @@ class TransE(object):
         self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound), name="R")
         # type vector w
-        self.w = tf.Variable(tf.random_uniform((1,), minval=0.01,
+        self.w = tf.Variable(tf.random_uniform((1,), minval=0.8,
                                                maxval=1.0), name="w", dtype=tf.float32)
         # constant range of hierarchy depth
         self.C = tf.constant(range(1, self.len_hierarchy), dtype=tf.int32)

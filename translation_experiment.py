@@ -19,7 +19,7 @@ from pre_training import EmbeddingPreTrainer
 import operator
 
 
-rnd = np.random.RandomState(24)
+rnd = np.random.RandomState(42)
 
 
 class SkipgramBatchGenerator(object):
@@ -257,6 +257,7 @@ def parse_axioms(ontology, ent_dict, rel_dict):
     for s,p,o in ontology.triples((None, None, None)):
         if unicode(s) in ent_dict and unicode(o) in ent_dict and p == RDFS.subClassOf:
             subclass_info.append((ent_dict[unicode(s)], ent_dict[unicode(o)]))
+    print "Num subclasses: ", len(subclass_info)
     return [], np.array(subclass_info)
 
 
@@ -441,17 +442,17 @@ class TranslationModels:
         return name
 
 # PATH PARAMETERS
-base_path = "./sim_data/"
+base_path = "./sensor_data/"
 path_to_store_model = base_path + "Embeddings/"
 path_to_events = base_path + "Sequences/" # TODO: should be optional if no skipgram stuff
-path_to_schema = base_path + '' #"Ontology/manufacturing_schema.rdf" # TODO: also optional if no schema present
-path_to_kg = base_path + 'Ontology/test_2.xml' #"Ontology/amberg_inferred_v2.xml"  # "Ontology/traffic_individuals.xml" # "Ontology/traffic_individuals.xml" # "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
+path_to_schema = base_path + "Ontology/amberg_inferred_v2.xml" # TODO: also optional if no schema present
+path_to_kg = base_path + "Ontology/amberg_inferred_v2.xml" # # "Ontology/traffic_individuals.xml" # "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
 path_to_store_sequences = base_path + "Sequences/"
 path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
 traffic_data = False
-sim_data = True
-path_to_traffic_sequence = base_path + 'Sequences/sequence_2.txt' #"Sequences/sequence.txt"
+sim_data = False
+path_to_traffic_sequence = base_path + 'Sequences/sequence.txt' #"Sequences/sequence.txt"
 num_sequences = None
 pre_train = False
 supp_event_embeddings = None    # base_path + Embeddings/supplied_embeddings_60.pickle"
@@ -515,29 +516,33 @@ else:
     print "After update: %d Number of triples: " % len(g)
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     g_schema = read_ontology(path_to_schema)
-    #_, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
-    #class_hierarchy = class_hierarchy_map(subclass_info)
-    subclass_info = []
+    _, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
+    class_hierarchy = class_hierarchy_map(subclass_info)
+    #subclass_info = []
     vocab_size = len(unique_msgs)
 
 # Sequence - correlation between events --> clusters modules of similar events together
 # Alpha to prevent overfitting to sequence data [need to test]
+# Concat essentially captures e1 e2 --> e3, and if e4, e5 --> e3, we expect a similar e1 == e4, e2 == e5
+# why performs better: The concatentation correlates frequent sequences with their respective prediction target
+# explain where skip-gram model comes from: representation of global co-occurrence statistice in local low-dimensional vectors
+# negative sampling: we do not need to compare target prediction against everything, smart way to capture co-occurrence
 
 # Hyper-Parameters
 model_type = TranslationModels.Trans_E
 bernoulli = True
-# "Skipgram", "Concat", "LSTM", "RNN"
-event_layer = None
+# "Skipgram", "Concat", "RNN"
+event_layer = 'Concat'
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [10, 20, 30]
+param_dict['embedding_size'] = [40, 60, 80]
 param_dict['seq_data_size'] = [1.0]
-param_dict['batch_size'] = [16]     # [32, 64, 128]
+param_dict['batch_size'] = [32]     # [32, 64, 128]
 param_dict['learning_rate'] = [0.1, 0.2, 0.05]     # [0.5, 0.8, 1.0]
-param_dict['lambd'] = [1.0] # [0.5, 0.1, 0.05]
+param_dict['lambd'] = [0.5, 0.1, 0.05]
 param_dict['alpha'] = [0.1, 0.5, 1.0]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-eval_step_size = 100
+eval_step_size = 200
 num_epochs = 100
 test_proportion = 0.2
 validation_proportion = 0.1
@@ -547,9 +552,9 @@ rightop = ident_entity
 
 # SKIP Parameters
 if event_layer is not None:
-    param_dict['num_skips'] = [2, 3, 4, 5]   # [2, 4]
+    param_dict['num_skips'] = [2, 3]   # [2, 4]
     param_dict['num_sampled'] = [10]     # [5, 9]
-    param_dict['batch_size_sg'] = [64]     # [128, 512]
+    param_dict['batch_size_sg'] = [32]     # [128, 512]
     if sim_data:
         num_sequences = prepare_sequences_traffic(path_to_traffic_sequence,
                                                   path_to_store_sequences + sequence_file_name, unique_msgs)
