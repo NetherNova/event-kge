@@ -52,11 +52,12 @@ def ident_entity(x, y):
 
 def max_margin(pos, neg, marge=1.0):
     cost = marge - pos + neg
-    return tf.reduce_mean(tf.maximum(0., cost))
+    return tf.reduce_sum(tf.maximum(0., cost))
 
 
 def rescal_similarity():
     pass
+
 
 def normalize(W):
     return W / tf.expand_dims(tf.sqrt(tf.reduce_sum(W ** 2, axis=1)), 1)
@@ -394,30 +395,6 @@ def skipgram_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     return skipgram_loss
 
 
-def paragraph_vector_loss(vocab_size, num_sampled, embed, embedding_size, train_labels, num_paragraphs, paragraph_ids):
-    paragraph_vectors = tf.Variable(
-        tf.truncated_normal([num_paragraphs, embedding_size],
-                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-
-    paragraph_embeddings = tf.nn.embedding_lookup(paragraph_vectors, paragraph_ids)
-    # TODO: how to concatenate multiple events? and paragraph vector?
-    embed = tf.concat()
-    nce_weights = tf.Variable(
-        tf.truncated_normal([vocab_size, embedding_size],
-                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
-    nce_biases = tf.Variable(tf.zeros([vocab_size]))
-
-    skipgram_loss = tf.reduce_mean(
-        tf.nn.nce_loss(weights=nce_weights,
-                       biases=nce_biases,
-                       labels=train_labels,
-                       inputs=embed,
-                       num_sampled=num_sampled,
-                       num_classes=vocab_size,
-                       remove_accidental_hits=True))
-    return skipgram_loss
-
-
 def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     W = tf.Variable(
         tf.truncated_normal([vocab_size, embedding_size],
@@ -435,7 +412,16 @@ def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     return loss
 
 
+def composition_rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    W = tf.Variable(
+        tf.truncated_normal([vocab_size, embedding_size],
+                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+
+
+
+
 def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    embedding_size = 50
     W = tf.Variable(
         tf.truncated_normal([vocab_size, embedding_size],
                             stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
@@ -475,7 +461,6 @@ def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_lab
     #embed_context = tf.concat_v2([embed_context, sequence_vectors], axis=1)
 
     #embed_context = tf.Print(embed_context.get_shape(),[embed_context], "context: ")
-
     W = tf.Variable(
         tf.truncated_normal([vocab_size, embed_context.get_shape()[1].value],
                             stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))

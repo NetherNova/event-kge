@@ -25,7 +25,7 @@ class EmbeddingPreTrainer(object):
             average_loss = 0
             for b in range(1, num_steps + 1):
                 # Event batches
-                batch_x, batch_y = self.batch_generator.next()
+                batch_x, batch_y = self.batch_generator.next(self.batch_size)
                 batch_y = np.array(batch_y).reshape((self.batch_size, 1))
                 feed_dict = {
                              self.model.train_inputs: batch_x, self.model.train_labels: batch_y

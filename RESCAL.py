@@ -7,8 +7,7 @@ from scipy.special import expit
 
 class RESCAL(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None,
-                 subclass_constr=None, num_sequences=None, num_events=None):
+                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None, num_sequences=None, num_events=None):
         """
         RESCAL with max-margin loss (not Alternating least-squares)
         :param num_entities:
@@ -29,7 +28,6 @@ class RESCAL(object):
         self.init_lr = init_lr
         self.lambd = lambd
         self.event_layer = event_layer
-        self.subclass_constr = subclass_constr
         self.num_sequences = num_sequences
         self.num_events = num_events
 

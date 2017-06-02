@@ -90,6 +90,14 @@ def read_ontology(path, format='xml'):
     g.load(path, format=format)
     for s,p,o in g.triples((None, URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'), None)):
         g.remove((s,p,o))
+    for s,p,o in g.triples((None, RDFS.subClassOf, None)):
+        g.remove((s,p,o))
+    for s,p,o in g.triples((None, RDFS.subPropertyOf, None)):
+        g.remove((s,p,o))
+    for s,p,o in g.triples((None, OWL.inverseOf, None)):
+        g.remove((s,p,o))
+    for s,p,o in g.triples((None, OWL.disjointWith, None)):
+        g.remove((s,p,o))
     return g
 
 
@@ -117,11 +125,11 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
     :param data:
     :return:
     """
-    ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
-    ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
-    ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
+    #ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
+    #ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
+    #ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
     entity_uri_to_data_id = dict()
-    for msg, id in msg_dict.iteritems():
+    for i, (msg, id) in enumerate(msg_dict.iteritems()):
         fe_or_module_id = None
         fe_or_module = np.unique(data[data[message_column] == msg][fe_column])[0]
         fe_or_module_id = fe_dict[fe_or_module]
@@ -131,16 +139,16 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
             fe_or_module = fe_or_module.replace('odule', '').replace(' ', '')
         ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
         ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module]))
-        # TODO: if both entries -> occursOn Module and FE
-        ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
-        entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
-        entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
         if "Stau" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
         elif "Achse" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
         elif "F?llstand" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
+        # TODO: if both entries -> occursOn Module and FE
+        ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
+        entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
+        entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
     return ont, entity_uri_to_data_id
 
 
@@ -266,7 +274,7 @@ def binary_sequences(sequences, index, unique_dict, classification_event=None):
     return train, labels
 
 
-def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size, classification_event=None):
+def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size, max_seq, g_train):
     """
     Dumps pickle for sequences and dictionary
     :param data_frame:
@@ -277,19 +285,36 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     """
     train_data = time_window(data_frame, window_size)
     result = []
+    overall_length = 0
+    zero_shot_dict = dict()
+    non_zero_dict = dict()
     print "Preparing sequential data..."
-    for i, seq in enumerate(train_data):
+    for i, seq in enumerate(train_data[:max_seq]):
         local_entities = [event[index] for event in seq]
-        result.append([unique_dict[entity] for entity in local_entities])
+        tmp_list = [unique_dict[entity] for entity in local_entities]
+        result.append(tmp_list)
+        overall_length += len(tmp_list)
+        for event_entity in tmp_list:
+            tmp_uri = amberg_ns['Event-' + str(event_entity)]
+            if (tmp_uri, None, None) not in g_train:
+                if tmp_uri in zero_shot_dict:
+                    continue
+                else:
+                    zero_shot_dict[tmp_uri] = True
+            else:
+                non_zero_dict[tmp_uri] = True
     print result[:10]
+    print "Zero shot: ", len(zero_shot_dict)
+    print "Non zero: ", len(non_zero_dict)
     pickle.dump(result, open(path_to_file + ".pickle", "wb"))
     reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
     pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
-    print "Processed %d sequences" %(len(result))
+    print "Processed %d sequences: " %(len(result))
+    print "Overall length of sequence: ", overall_length
     return len(result)
 
 
-def prepare_sequences_nba(path_to_input, path_to_output):
+def prepare_sequences_traffic(path_to_input, path_to_output, unique_msgs):
     """
     Dumps pickle for sequences and dictionary
     :param data_frame:
@@ -302,7 +327,7 @@ def prepare_sequences_nba(path_to_input, path_to_output):
         result = []
         for line in f:
             entities = line.split(',')
-            result.append([int(e.strip()) for e in entities])
+            result.append([int(e.strip()) for e in entities if int(e.strip()) in unique_msgs.values()])
     print "Preparing sequential data..."
     print result[:10]
     pickle.dump(result, open(path_to_output + ".pickle", "wb"))
