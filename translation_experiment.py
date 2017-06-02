@@ -347,15 +347,15 @@ class TranslationModels:
         return name
 
 # PATH PARAMETERS
-base_path = "./nba_data/"
+base_path = "./test_data/"
 path_to_store_model = base_path + "Embeddings/"
 path_to_events = base_path + "Sequences/" # TODO: should be optional if no skipgram stuff
 path_to_schema = base_path + "Ontology/manufacturing_schema.rdf" # TODO: also optional if no schema present
-path_to_kg = base_path + "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
+path_to_kg = base_path + "Ontology/amberg_inferred.xml" # "Ontology/players.nt" # #     #
 path_to_store_sequences = base_path + "Sequences/"
 path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
-nba_data = True
+nba_data = False
 path_to_nba_sequence = base_path + "Sequences/sequences.txt"
 num_sequences = None
 pre_train = False
@@ -390,25 +390,25 @@ else:
     print "After update: %d Number of triples: " % len(g)
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     g_schema = read_ontology(path_to_schema)
-    _, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
-    # subclass_info = []
+    # _, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
+    subclass_info = []
     vocab_size = len(unique_msgs)
 
 # Hyper-Parameters
 model_type = TranslationModels.Trans_E
 bernoulli = True
 # "Skipgram", "Concat", "LSTM", "RNN"
-event_layer = "Skipgram"
+event_layer = None
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [50]
+param_dict['embedding_size'] = [60]
 param_dict['seq_data_size'] = [1.0]
 param_dict['batch_size'] = [64]     # [32, 64, 128]
 param_dict['learning_rate'] = [1.0]     # [0.5, 0.8, 1.0]
 param_dict['lambd'] = [0.0001]
 # seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-eval_step_size = 100
-num_epochs = 100
+eval_step_size = 50
+num_epochs = 20
 test_proportion = 0.2
 validation_proportion = 0.1
 fnsim = l2_similarity
@@ -459,7 +459,9 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
     param_combs = cross_parameter_eval(param_dict)
     for comb_num, tmp_param_dict in enumerate(param_combs):
         params = Parameters(**tmp_param_dict)
+        # calculate number of steps based on how many epochs and batchsize
         num_steps = (train_size / params.batch_size) * num_epochs
+
         print "Progress: %d prct" %(int((100.0 * comb_num) / len(param_combs)))
         print "Embedding size: ", params.embedding_size
         print "Batch size: ", params.batch_size
@@ -570,7 +572,9 @@ with open("evaluation_parameters_10pct_" + model_name + ".csv", "wb") as csvfile
                              model.global_step : b
                              }
                 # One train step in mini-batch
-                _, l = session.run(model.train(), feed_dict=feed_dict)
+                grads = tf.gradients(model.loss, model.variables())
+                _, l, g = session.run(model.train() + [grads], feed_dict=feed_dict)
+                #_, l = session.run(model.train(), feed_dict=feed_dict)
                 average_loss += l
                 # Run post-ops: regularization etc.
                 session.run(model.post_ops())
