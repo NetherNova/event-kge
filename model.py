@@ -421,6 +421,7 @@ def composition_rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_l
 
 
 def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    embedding_size = 50
     W = tf.Variable(
         tf.truncated_normal([vocab_size, embedding_size],
                             stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))

@@ -11,4 +11,4 @@ For triple processing, rdflib is used.
 - rdflib
 - pandas
 - numpy
-- scikit-learn
+- TensorFlow
