@@ -305,16 +305,16 @@ class TranslationModels:
         return name
 
 # PATH PARAMETERS
-base_path = "./traffic_data/"
+base_path = "./routing_data/"
 path_to_store_model = base_path + "Embeddings/"
 path_to_events = base_path + "Sequences/" # TODO: should be optional if no skipgram stuff
-path_to_schema = base_path + "Ontology/amberg_inferred_v2.xml" # TODO: also optional if no schema present
-path_to_kg = base_path + "Ontology/traffic_individuals.xml" # "Ontology/amberg_inferred_v2.xml" # #  # "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
+path_to_schema = base_path + "Ontology/PPR_individuals.rdf" # TODO: also optional if no schema present
+path_to_kg = base_path + "Ontology/PPR_individuals.rdf" # "Ontology/amberg_inferred_v2.xml" # #  # "Ontology/players.nt" # "Ontology/amberg_inferred.xml"     #
 path_to_store_sequences = base_path + "Sequences/"
 path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
-traffic_data = True
-sim_data = False
+traffic_data = False
+sim_data = True
 path_to_traffic_sequence = base_path + 'Sequences/sequence.txt' #"Sequences/sequence.txt"
 num_sequences = None
 pre_train = False
@@ -322,6 +322,7 @@ supp_event_embeddings = None    # base_path + Embeddings/supplied_embeddings_60.
 cross_eval_single = True
 
 if sim_data:
+    zero_shot_entities = []
     g = ConjunctiveGraph()
     g.load(path_to_kg, format="xml")
     with open(base_path + "unique_msgs2.txt", "rb") as f:
@@ -335,6 +336,25 @@ if sim_data:
     ent_dict = new_ent_dict
     unique_msgs = ent_dict.copy()
     vocab_size = len(ent_dict)
+    exclude_rels = ['http://www.siemens.com/knowledge_graph/ppr#resourceName',
+                    'http://www.siemens.com/knowledge_graph/ppr#shortText',
+                    'http://www.siemens.com/knowledge_graph/ppr#compVariant',
+                    'http://www.siemens.com/knowledge_graph/ppr#compVersion',
+                    'http://www.siemens.com/knowledge_graph/ppr#personTime_min',
+                    'http://www.siemens.com/knowledge_graph/ppr#machiningTime_min',
+                    'http://www.siemens.com/knowledge_graph/ppr#setupTime_min',
+                    'http://www.w3.org/2002/07/owl#imports',
+                    'http://siemens.com/knowledge_graph/industrial_upper_ontology#hasPart']
+    to_be_removed = []
+    for rel in exclude_rels:
+        for s,p,o in g.triples((None, URIRef(rel), None)):
+            to_be_removed.append((s,p,o))
+        for triple in to_be_removed:
+            g.remove(triple)
+    random_indices = np.random.choice(range(len(g)), 10, False)
+    for i, (s,p,o) in enumerate(g.triples((None, None, None))):
+        if i in random_indices:
+            g.remove((s,p,o))
     ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
     print "After update: %d Number of triples: " % len(g)
     subclass_info = []
@@ -401,17 +421,17 @@ else:
 model_type = TranslationModels.Trans_E
 bernoulli = True
 # "Skipgram", "Concat", "RNN"
-event_layer = 'Skipgram'
+event_layer = None
 store_embeddings = False
 param_dict = {}
-param_dict['embedding_size'] = [40, 60, 80]
+param_dict['embedding_size'] = [80]
 param_dict['seq_data_size'] = [1.0]
 param_dict['batch_size'] = [32]     # [32, 64, 128]
-param_dict['learning_rate'] = [0.1, 0.05, 0.2]     # [0.5, 0.8, 1.0]
-param_dict['lambd'] = [1.0] #[0.5, 0.1, 0.05]
-param_dict['alpha'] = [1.0] # [0.1, 0.5, 1.0]
-# seq_data_sizes = np.arange(0.1, 1.0, 0.2)
-eval_step_size = 200
+param_dict['learning_rate'] = [0.1]     # [0.5, 0.8, 1.0]
+param_dict['lambd'] = [1.0]     # [0.5, 0.1, 0.05]
+param_dict['alpha'] = [1.0]     # [0.1, 0.5, 1.0]
+
+eval_step_size = 1000
 num_epochs = 100
 test_proportion = 0.2
 validation_proportion = 0.1
@@ -421,6 +441,17 @@ rightop = ident_entity
 
 # Train dev test splitting
 g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion, zero_shot_entities)
+
+################ PPR TESTING of TYPES #####################
+for s,p,o in g_test.triples((None, None, None)):
+    if p != RDF.type:
+        g_test.remove((s,p,o))
+
+for s,p,o in g_valid.triples((None, None, None)):
+    if p != RDF.type:
+        g_valid.remove((s,p,o))
+############################################################
+
 train_size = len(g_train)
 valid_size = len(g_valid)
 test_size = len(g_test)

@@ -158,4 +158,4 @@ class TransE(object):
         return [self.optimizer, self.loss]
 
     def variables(self):
-        return [self.E, self.R, self.w]
+        return [self.E, self.R]
