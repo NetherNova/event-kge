@@ -1,7 +1,7 @@
-import tensorflow as tf
-from model import skipgram_loss
 import numpy as np
-from model import SuppliedEmbedding, normalize
+import tensorflow as tf
+
+from models.model import SuppliedEmbedding, normalize, SkipgramModel
 
 
 class EmbeddingPreTrainer(object):
@@ -38,7 +38,6 @@ class EmbeddingPreTrainer(object):
             # TODO: normalize?
             self.embs = session.run(self.normalized)
 
-
     def save(self):
         if self.embs is None:
             print "No embeddings defined yet"
@@ -48,24 +47,3 @@ class EmbeddingPreTrainer(object):
         return sup_embs
 
 
-class SkipgramModel(object):
-    def __init__(self, embedding_size, batch_size, num_sampled, vocab_size):
-        self.embedding_size = embedding_size
-        self.batch_size = batch_size
-        self.num_sampled = num_sampled
-        self.vocab_size = vocab_size
-
-    def create_graph(self):
-        w_bound = 0.5 * self.embedding_size
-        self.E = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -w_bound, w_bound))
-        self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size])
-        self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size, 1])
-        sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-        self.loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
-        self.optimizer = tf.train.AdagradOptimizer(1.0).minimize(self.loss)
-
-    def train(self):
-        return [self.optimizer, self.loss]
-
-    def variables(self):
-        return self.E

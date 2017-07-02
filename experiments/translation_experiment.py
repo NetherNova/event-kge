@@ -1,23 +1,25 @@
-import numpy as np
-import pickle
-from rdflib import ConjunctiveGraph, RDF, RDFS, OWL, URIRef, Literal
-from etl import update_ontology, prepare_sequences, message_index, get_merged_dataframe, get_unique_entities, read_ontology, load_text_file, prepare_sequences_nba
-from sklearn.manifold import TSNE
 import csv
 import itertools
-from model import trans, ident_entity, l2_similarity
+import matplotlib.pyplot as plt
+import pickle
+from collections import defaultdict
+from rdflib import ConjunctiveGraph, RDFS, URIRef
+
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import tensorflow as tf
 from TransE import TransE
 from TransEve import TransEve
 from TransH import TransH
-from RESCAL import RESCAL
-import seaborn as sns
-import matplotlib.pyplot as plt
-import pandas as pd
-import tensorflow as tf
-from collections import defaultdict
-from model import ranking_error_triples, insight_error_triples
-from pre_training import EmbeddingPreTrainer
+from model import ranking_error_triples
+from model import trans, ident_entity, l2_similarity
+from sklearn.manifold import TSNE
 
+from models.RESCAL import RESCAL
+from models.pre_training import EmbeddingPreTrainer
+from prep.etl import update_ontology, prepare_sequences, message_index, get_merged_dataframe, get_unique_entities, read_ontology, \
+    prepare_sequences_nba
 
 rnd = np.random.RandomState(25)
 

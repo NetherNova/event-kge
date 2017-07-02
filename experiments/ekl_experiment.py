@@ -18,28 +18,29 @@
 # - pandas
 
 
-import numpy as np
-import pickle
-from rdflib import ConjunctiveGraph, RDF, RDFS, URIRef
-from etl import update_ontology, prepare_sequences, message_index, get_merged_dataframe, get_unique_entities, read_ontology, prepare_sequences_traffic
-from sklearn.manifold import TSNE
+import argparse
 import csv
 import itertools
-from model import trans, ident_entity, l2_similarity
-from TransE import TransE
-from TransEve import TransEve
-from TransH import TransH
-from RESCAL import RESCAL
-import seaborn as sns
 import matplotlib.pyplot as plt
-import pandas as pd
-import tensorflow as tf
-from model import ranking_error_triples, insight_error_triples
-from pre_training import EmbeddingPreTrainer
-import operator
-import argparse
-from batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator
+import pickle
+from rdflib import ConjunctiveGraph, RDF, RDFS
 
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import tensorflow as tf
+from sklearn.manifold import TSNE
+
+from models.RESCAL import RESCAL
+from models.TransE import TransE
+from models.TransEve import TransEve
+from models.TransH import TransH
+from models.model import ranking_error_triples
+from models.model import trans, ident_entity, l2_similarity
+from models.pre_training import EmbeddingPreTrainer
+from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator
+from prep.etl import update_ontology, prepare_sequences, message_index, get_merged_dataframe, get_unique_entities
+from prep.preprocessing import PreProcessor
 
 rnd = np.random.RandomState(42)
 
@@ -67,6 +68,7 @@ def slice_ontology(ontology, valid_proportion, test_proportion, zero_shot_entiti
     ont_train = ConjunctiveGraph()
     event_entities_in_train = dict()
     valid_size = int(np.floor(valid_proportion * len(ontology)))
+    # TODO: only correct if event entities occur in two triples?
     test_size = int(np.floor(test_proportion * len(ontology))) - 2 * len(zero_shot_entities)
     slice_indices = rnd.choice(range(0, len(ontology)), valid_size + test_size, replace=False)
     valid_indices = slice_indices[:valid_size]
@@ -174,9 +176,14 @@ def plot_embeddings(embs, reverse_dictionary):
 def get_low_dim_embs(embs, reverse_dictionary, dim=2):
     tsne = TSNE(perplexity=30, n_components=dim, init='pca', n_iter=5000)
     low_dim_embs = tsne.fit_transform(embs)
-    colnames = ['x' + str(i) for i in range(dim)]
-    df = pd.DataFrame(low_dim_embs, columns=colnames)
-    df["id"] = [i for i in range(low_dim_embs.shape[0])]
+    df = embs_to_df(low_dim_embs, reverse_dictionary)
+    return df
+
+
+def embs_to_df(embs, reverse_dictionary):
+    colnames = ['x' + str(i) for i in range(embs.shape[1])]
+    df = pd.DataFrame(embs, columns=colnames)
+    df["id"] = [i for i in range(embs.shape[0])]
     df["uri"] = [reverse_dictionary[k] for k in reverse_dictionary]
     df = df.set_index("id")
     return df
@@ -315,27 +322,13 @@ path_to_store_embeddings = base_path + "Embeddings/"
 sequence_file_name = "train_sequences"
 traffic_data = False
 sim_data = True
-path_to_traffic_sequence = base_path + 'Sequences/sequence.txt' #"Sequences/sequence.txt"
+path_to_sequence = base_path + 'Sequences/sequence.txt' #"Sequences/sequence.txt"
 num_sequences = None
 pre_train = False
 supp_event_embeddings = None    # base_path + Embeddings/supplied_embeddings_60.pickle"
 cross_eval_single = True
 
 if sim_data:
-    zero_shot_entities = []
-    g = ConjunctiveGraph()
-    g.load(path_to_kg, format="xml")
-    with open(base_path + "unique_msgs2.txt", "rb") as f:
-        ent_dict = dict()
-        for line in f:
-            ent_dict[line.split(',')[0]] = int(line.split(',')[1].strip())
-    sorted_ent_dict = sorted(ent_dict.items(), key=operator.itemgetter(1), reverse=False)
-    new_ent_dict = dict()
-    for item in sorted_ent_dict:
-        new_ent_dict[item[0]] = item[1]
-    ent_dict = new_ent_dict
-    unique_msgs = ent_dict.copy()
-    vocab_size = len(ent_dict)
     exclude_rels = ['http://www.siemens.com/knowledge_graph/ppr#resourceName',
                     'http://www.siemens.com/knowledge_graph/ppr#shortText',
                     'http://www.siemens.com/knowledge_graph/ppr#compVariant',
@@ -343,96 +336,59 @@ if sim_data:
                     'http://www.siemens.com/knowledge_graph/ppr#personTime_min',
                     'http://www.siemens.com/knowledge_graph/ppr#machiningTime_min',
                     'http://www.siemens.com/knowledge_graph/ppr#setupTime_min',
-                    'http://www.w3.org/2002/07/owl#imports',
-                    'http://siemens.com/knowledge_graph/industrial_upper_ontology#hasPart']
-    to_be_removed = []
-    for rel in exclude_rels:
-        for s,p,o in g.triples((None, URIRef(rel), None)):
-            to_be_removed.append((s,p,o))
-        for triple in to_be_removed:
-            g.remove(triple)
-    random_indices = np.random.choice(range(len(g)), 10, False)
-    for i, (s,p,o) in enumerate(g.triples((None, None, None))):
-        if i in random_indices:
-            g.remove((s,p,o))
-    ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
-    print "After update: %d Number of triples: " % len(g)
-    subclass_info = []
+                    'http://siemens.com/knowledge_graph/industrial_upper_ontology#hasPart',
+                    RDF.type]
+    preprocessor = PreProcessor(path_to_kg, path_to_sequence)
+    preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt')
 elif traffic_data:
-    zero_shot_entities = []
-    g = ConjunctiveGraph()
-    g.load(path_to_kg, format="xml")
-    with open(base_path + "unique_msgs.txt", "rb") as f:
-        ent_dict = dict()
-        for line in f:
-            ent_dict[line.split(',')[0]] = int(line.split(',')[1].strip())
-    sorted_ent_dict = sorted(ent_dict.items(), key=operator.itemgetter(1), reverse=False)
-    new_ent_dict = dict()
-    for item in sorted_ent_dict[:1000]:
-        new_ent_dict[item[0]] = item[1]
-    ent_dict = new_ent_dict
-    unique_msgs = ent_dict.copy()
-    for i, (s,p,o) in enumerate(g.triples((None, RDF.type, URIRef('http://www.siemens.com/citypulse#Event')))):
-        if str(s).split('#')[1] not in ent_dict:
-            for (s2,p2,o2) in g.triples((s, None, None)):
-                g.remove((s2,p2,o2))
-            for (s3,p3,o3) in g.triples((None, None, s)):
-                g.remove((s3, p3, o3))
-    for i, (s, p, o) in enumerate(g.triples((None, None, None))):
-        if i > 10000:
-            g.remove((s,p,o))
-    vocab_size = len(ent_dict)
-    ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
-    print "After update: %d Number of triples: " % len(g)
-    #_, subclass_info = parse_axioms(g, ent_dict, rel_dict)
-    #class_hierarchy = class_hierarchy_map(subclass_info)
-    subclass_info = []
+    exclude_rels = []
+    preprocessor = PreProcessor(path_to_kg, path_to_sequence)
+    preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt')
 else:
     max_events = 5000
     max_seq = 5000
-    event_prct_in_kg = 0.1
     # sequence window size in minutes
     window_size = 3
     merged = get_merged_dataframe(path_to_events, max_events)
     unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
-    # includes relations
-    g = read_ontology(path_to_kg)
-    print "Read %d number of triples" % len(g)
-    event_num_in_kg = np.floor(len(unique_msgs) * event_prct_in_kg)
-    zero_shot_entities = [] # rnd.choice(len(unique_msgs), int(event_num_in_kg), replace=False)
-    print "Number of events in test set %d compared to overall %d" %(event_num_in_kg, len(unique_msgs))
+    # exc relations
+    exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
+    preprocessor = PreProcessor(path_to_kg, path_to_sequence, unique_msgs)
+
+preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, clean_schema=True)
+zero_shot_entities = [] # rnd.choice(len(unique_msgs), int(event_num_in_kg), replace=False)
+event_prct_in_kg = 0.1
+vocab_size = preprocessor.get_vocab_size()
+ent_dict = preprocessor.get_ent_dict()
+g = preprocessor.get_kg()
+print "Read %d number of triples" % len(g)
+event_num_in_kg = np.floor(vocab_size * event_prct_in_kg)
+if not (traffic_data or sim_data):
+    # custom update function for amberg scenario
     g, ent_dict = update_ontology(g, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
-    print "After update: %d Number of triples: " % len(g)
-    ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
-    #g_schema = read_ontology(path_to_schema)
-    #_, subclass_info = parse_axioms(g_schema, ent_dict, rel_dict)
-    #class_hierarchy = class_hierarchy_map(subclass_info)
-    subclass_info = []
-    vocab_size = len(unique_msgs)
+print "Number of events in test set %d compared to overall %d" %(event_num_in_kg, vocab_size)
+ent_dict, rel_dict = update_entity_relation_dictionary(g, ent_dict)
+print "After update: %d Number of triples: " % len(g)
 
-# Sequence - correlation between events --> clusters modules of similar events together
-# Alpha to prevent overfitting to sequence data [need to test]
-# Concat essentially captures e1 e2 --> e3, and if e4, e5 --> e3, we expect a similar e1 == e4, e2 == e5
-# why performs better: The concatentation correlates frequent sequences with their respective prediction target
-# explain where skip-gram model comes from: representation of global co-occurrence statistice in local low-dimensional vectors
-# negative sampling: we do not need to compare target prediction against everything, smart way to capture co-occurrence
+subclass_info = []
 
-# Hyper-Parameters
+######### Model selection ##########
 model_type = TranslationModels.Trans_E
 bernoulli = True
 # "Skipgram", "Concat", "RNN"
 event_layer = None
-store_embeddings = False
+store_embeddings = True
+
+######### Hyper-Parameters #########
 param_dict = {}
-param_dict['embedding_size'] = [80]
+param_dict['embedding_size'] = [20]
 param_dict['seq_data_size'] = [1.0]
 param_dict['batch_size'] = [32]     # [32, 64, 128]
 param_dict['learning_rate'] = [0.1]     # [0.5, 0.8, 1.0]
 param_dict['lambd'] = [1.0]     # [0.5, 0.1, 0.05]
 param_dict['alpha'] = [1.0]     # [0.1, 0.5, 1.0]
-
-eval_step_size = 1000
-num_epochs = 100
+eval_step_size = 300
+num_epochs = 1
 test_proportion = 0.2
 validation_proportion = 0.1
 fnsim = l2_similarity
@@ -441,16 +397,9 @@ rightop = ident_entity
 
 # Train dev test splitting
 g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion, zero_shot_entities)
-
-################ PPR TESTING of TYPES #####################
-for s,p,o in g_test.triples((None, None, None)):
-    if p != RDF.type:
-        g_test.remove((s,p,o))
-
-for s,p,o in g_valid.triples((None, None, None)):
-    if p != RDF.type:
-        g_valid.remove((s,p,o))
-############################################################
+g_train.serialize(base_path + 'train.xml')
+g_valid.serialize(base_path + 'valid.xml')
+g_test.serialize(base_path + 'test.xml')
 
 train_size = len(g_train)
 valid_size = len(g_valid)
@@ -465,11 +414,8 @@ if event_layer is not None:
     param_dict['num_sampled'] = [10]     # [5, 9]
     param_dict['batch_size_sg'] = [32]     # [128, 512]
     pre_train_steps = 5000
-    if sim_data:
-        num_sequences = prepare_sequences_traffic(path_to_traffic_sequence,
-                                                  path_to_store_sequences + sequence_file_name, unique_msgs)
-    elif traffic_data:
-        num_sequences = prepare_sequences_traffic(path_to_traffic_sequence, path_to_store_sequences + sequence_file_name, unique_msgs)
+    if sim_data or traffic_data:
+        num_sequences = preprocessor.prepare_sequences(path_to_sequence, path_to_store_sequences + sequence_file_name)
     else:
         num_sequences = prepare_sequences(merged, path_to_store_sequences + sequence_file_name, message_index,
                                           unique_msgs, window_size, max_seq, g_train)
@@ -479,7 +425,7 @@ num_entities = len(ent_dict)
 num_relations = len(rel_dict)
 print "Num entities:", num_entities
 print "Num relations:", num_relations
-print "Event entity percentage: %3.2f prct" %(100.0 * len(unique_msgs) / num_entities)
+print "Event entity percentage: %3.2f prct" %(100.0 * vocab_size / num_entities)
 
 if bernoulli:
     bern_probs = bernoulli_probs(g, rel_dict)
@@ -676,14 +622,19 @@ for comb_num, tmp_param_dict in enumerate(param_combs):
                     best_param_list = param_list
 
         reverse_entity_dictionary = dict(zip(ent_dict.values(), ent_dict.keys()))
-        for msg_name, msg_id in unique_msgs.iteritems():
-            reverse_entity_dictionary[msg_id] = msg_name
+        # for msg_name, msg_id in unique_msgs.iteritems():
+        #     reverse_entity_dictionary[msg_id] = msg_name
         reverse_relation_dictionary = dict(zip(rel_dict.values(), rel_dict.keys()))
 
         # save embeddings to disk
         if store_embeddings:
             for i in range(len(entity_embs)):
                 df_embs = get_low_dim_embs(entity_embs[i], reverse_entity_dictionary)
+                df_embs.to_csv(path_to_store_embeddings + "entity_embeddings_low" + str(i) + ".csv", sep=',',
+                               encoding='utf-8')
+
+                # TODO: only of best model
+                df_embs = embs_to_df(entity_embs[i], reverse_entity_dictionary)
                 df_embs.to_csv(path_to_store_embeddings + "entity_embeddings" + str(i) + ".csv", sep=',',
                                encoding='utf-8')
 

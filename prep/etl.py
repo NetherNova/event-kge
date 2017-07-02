@@ -80,27 +80,6 @@ def read_metadata(path):
     return meta_dict
 
 
-def read_ontology(path, format='xml'):
-    """
-
-    :param path:s
-    :return:
-    """
-    g = ConjunctiveGraph()
-    g.load(path, format=format)
-    for s,p,o in g.triples((None, URIRef('http://www.siemens.com/ontology/demonstrator#tagAlias'), None)):
-        g.remove((s,p,o))
-    for s,p,o in g.triples((None, RDFS.subClassOf, None)):
-        g.remove((s,p,o))
-    for s,p,o in g.triples((None, RDFS.subPropertyOf, None)):
-        g.remove((s,p,o))
-    for s,p,o in g.triples((None, OWL.inverseOf, None)):
-        g.remove((s,p,o))
-    for s,p,o in g.triples((None, OWL.disjointWith, None)):
-        g.remove((s,p,o))
-    return g
-
-
 def load_text_file(path):
     g = ConjunctiveGraph()
     with open(path, "rb") as file:
@@ -147,6 +126,7 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
         # TODO: if both entries -> occursOn Module and FE
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
+        # TODO: don't need to maintain fe_or_module_id? is updated anyway
         entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
         entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
     return ont, entity_uri_to_data_id
@@ -311,27 +291,6 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
     print "Processed %d sequences: " %(len(result))
     print "Overall length of sequence: ", overall_length
-    return len(result)
-
-
-def prepare_sequences_traffic(path_to_input, path_to_output, unique_msgs):
-    """
-    Dumps pickle for sequences and dictionary
-    :param data_frame:
-    :param file_name:
-    :param index:
-    :param classification_event:
-    :return:
-    """
-    with open(path_to_input, "rb") as f:
-        result = []
-        for line in f:
-            entities = line.split(',')
-            result.append([int(e.strip()) for e in entities if int(e.strip()) in unique_msgs.values()])
-    print "Preparing sequential data..."
-    print result[:10]
-    pickle.dump(result, open(path_to_output + ".pickle", "wb"))
-    print "Processed %d sequences" %(len(result))
     return len(result)
 
 

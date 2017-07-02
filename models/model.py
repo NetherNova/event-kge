@@ -162,24 +162,26 @@ class Softmax(object):
 
 
 class SkipgramModel(object):
-    def __init__(self, label, num_entities, num_hidden, num_hidden_softmax):
-        self.num_dim = num_hidden
-        self.num_entities = num_entities
-        self.num_hidden_softmax = num_hidden_softmax
-        self.W = tf.Variable(tf.truncated_normal(shape=(num_entities, num_hidden), name="W-"+label))
+    def __init__(self, embedding_size, batch_size, num_sampled, vocab_size):
+        self.embedding_size = embedding_size
+        self.batch_size = batch_size
+        self.num_sampled = num_sampled
+        self.vocab_size = vocab_size
 
-    def loss(self, lookup_entities, labels):
-        # TODO: embedding_lookup, sum over context
-        # concatentation of previous layer --> num_hidden_softmax needs to be the size of the concatentation
-        context_embeddings = tf.nn.embedding_lookup(self.W, lookup_entities)
-        loss = Softmax(context_embeddings, labels, self.num_entities, self.num_hidden_softmax).loss()
-        return loss
+    def create_graph(self):
+        w_bound = 0.5 * self.embedding_size
+        self.E = tf.Variable(tf.random_uniform([self.vocab_size, self.embedding_size], -w_bound, w_bound))
+        self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size])
+        self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size, 1])
+        sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
+        self.loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
+        self.optimizer = tf.train.AdagradOptimizer(1.0).minimize(self.loss)
 
-    def get_normalized_embeddings(self):
-        return self.W / tf.sqrt(tf.reduce_sum(tf.square(self.W), 1, keep_dims=True))
+    def train(self):
+        return [self.optimizer, self.loss]
 
-    def get_embeddings(self):
-        return self.W     
+    def variables(self):
+        return self.E
 
 
 class EventsWithWordsModel(object):
