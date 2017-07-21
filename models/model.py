@@ -184,107 +184,6 @@ class SkipgramModel(object):
         return self.E
 
 
-class EventsWithWordsModel(object):
-    def __init__(self, len_sequence, num_words_per_sequence, num_entities, embedding_size, num_label_entities, num_neg_samples):
-        self._len_sequence = len_sequence
-        self._num_words_per_sequence = num_words_per_sequence
-        self._num_entities = num_entities
-        self._embedding_size = embedding_size
-        self._num_label_entities = num_label_entities
-        self._num_neg_samples = num_neg_samples
-        self.W = EmbeddingLayer("EventWords", num_entities, embedding_size)
-
-    def loss(self, train_dataset, train_labels, batch_size):
-        concat = incremental_concat_layer(self.W.get_embeddings(), train_dataset, batch_size, self._embedding_size,
-                                          self._len_sequence, self._num_words_per_sequence)
-        loss = Softmax(concat, train_labels, self._num_label_entities, self._num_neg_samples, (self._len_sequence) *
-                       (self._num_words_per_sequence+1) * self._embedding_size).loss()
-        return loss
-
-
-class EventsWithWordsAndVariantModel(object):
-    def __init__(self, len_sequence, num_words_per_sequence, num_entities, embedding_size, num_label_events, num_label_variants, variant_index, num_neg_samples):
-        self._len_sequence = len_sequence
-        self._num_words_per_sequence = num_words_per_sequence
-        self._num_entities = num_entities
-        self._embedding_size = embedding_size
-        self._num_label_events = num_label_events
-        self._num_label_variants = num_label_variants
-        self._num_neg_samples = num_neg_samples
-        self._variant_index = variant_index
-        self.W = EmbeddingLayer("EventWords", num_entities, embedding_size)
-
-    def loss(self, train_dataset, train_labels_events, train_labels_variants, batch_size):
-        concat = incremental_concat_layer(self.W.get_embeddings(), train_dataset, batch_size, self._embedding_size,
-                                          self._len_sequence, self._num_words_per_sequence)
-        variant_embeddings = tf.reshape(tf.nn.embedding_lookup(self.W.get_embeddings(), tf.slice(train_dataset,
-                                [0, self._variant_index], [batch_size, 1])), [batch_size, self._embedding_size])
-        concat_variant = concat_layer(concat, variant_embeddings)
-        concat_last_event = concat_layer(concat, tf.reshape(tf.nn.embedding_lookup(self.W.get_embeddings(),
-                                                                                   train_labels_events), [batch_size, self._embedding_size]))
-        loss1 = Softmax(concat_variant, train_labels_events, self._num_label_events, self._num_neg_samples,
-                        (self._len_sequence) * (self._num_words_per_sequence+1) * self._embedding_size +
-                        self._embedding_size).loss()
-        loss2 = Softmax(concat_last_event, train_labels_variants, self._num_label_variants, self._num_neg_samples - 3,
-                        (self._len_sequence) * (self._num_words_per_sequence+1) * self._embedding_size +
-                        self._embedding_size).loss()
-        return loss1 + loss2
-
-    def get_model(self, train_dataset, dataset_size):
-        concat = incremental_concat_layer(self.W.get_embeddings(), train_dataset, dataset_size, self._embedding_size,
-                                          self._len_sequence, self._num_words_per_sequence)
-        variant_embeddings = tf.reshape(tf.nn.embedding_lookup(self.W.get_embeddings(), tf.slice(train_dataset,
-                            [0, self._variant_index], [dataset_size, 1])), [dataset_size, self._embedding_size])
-        concat_variant = concat_layer(concat, variant_embeddings)
-        return concat_variant
-
-    def get_embeddings(self, dataset):
-        return self.W.get_embeddings()
-    
-
-class EventsWithWordsAndVariantComposedModel(object):
-    def __init__(self, len_sequence, num_words_per_sequence, num_entities, embedding_size, num_label_events,
-                 num_label_variants, variant_index, num_neg_samples, num_variant_parts):
-        self._len_sequence = len_sequence
-        self._num_words_per_sequence = num_words_per_sequence
-        self._num_entities = num_entities
-        self._embedding_size = embedding_size
-        self._num_label_events = num_label_events
-        self._num_label_variants = num_label_variants
-        self._num_neg_samples = num_neg_samples
-        self._variant_index = variant_index
-        self._num_variant_parts = num_variant_parts
-        self.W = EmbeddingLayer("EventWords", num_entities, embedding_size)
-
-    def loss(self, train_dataset, train_labels_events, train_labels_variants, batch_size):
-        # last entries in train_dataset (..., variant, part, part, ..., part)
-        concat = incremental_concat_layer(self.W.get_embeddings(), train_dataset, batch_size,
-                                          self._embedding_size, self._len_sequence, self._num_words_per_sequence)
-        var_avg = average_layer(tf.nn.embedding_lookup(self.W.get_embeddings(), tf.slice(train_dataset,
-                                            [0, self._variant_index], [batch_size, self._num_variant_parts])), axis=1)
-        concat_variant_parts = concat_layer(concat, var_avg)
-        concat_last_event = concat_layer(concat, tf.reshape(tf.nn.embedding_lookup(self.W.get_embeddings(),
-                                                        train_labels_events), [batch_size, self._embedding_size]))
-        loss1 = Softmax(concat_variant_parts, train_labels_events, self._num_label_events, self._num_neg_samples,
-                        (self._len_sequence) * (self._num_words_per_sequence+1) * self._embedding_size +
-                        self._embedding_size).loss()
-        loss2 = Softmax(concat_last_event, train_labels_variants, self._num_label_variants, self._num_neg_samples - 3,
-                        (self._len_sequence) * (self._num_words_per_sequence+1) * self._embedding_size +
-                        self._embedding_size).loss()
-        return loss1 + loss2
-
-    def get_model(self, train_dataset, dataset_size):
-        concat = incremental_concat_layer(self.W.get_embeddings(), train_dataset, dataset_size, self._embedding_size,
-                                          self._len_sequence, self._num_words_per_sequence)
-        var_avg = average_layer(tf.nn.embedding_lookup(self.W.get_embeddings(), tf.slice(train_dataset,
-                            [0, self._variant_index], [dataset_size, self._num_variant_parts])), axis=1)
-        concat_variant_parts = concat_layer(concat, var_avg)
-        return concat_variant_parts
-
-    def get_embeddings(self, dataset):
-        return self.W.get_embeddings()
-
-
 def incremental_concat_layer(embeddings, train_dataset, batch_size, embedding_size, len_sequence,
                              num_words_per_sequence):
     """Deprecated: simply use tf.reshape()"""
@@ -323,61 +222,6 @@ def average_layer(tensor, axis):
     :return:
     """
     return tf.reduce_mean(tensor, axis)
-
-
-class EmbeddingLayer(object):
-    def __init__(self, label, num_entities, num_hidden):
-        self.W = tf.Variable(tf.truncated_normal(shape=(num_entities, num_hidden), name="W-"+label))
-
-    def get_embeddings(self):
-        return self.W
-
-
-class EventEmbedding(object):
-    def __init__(self, label, num_entities, num_events, num_dim):
-        self.num_dim = num_dim
-        self.num_entities = num_entities
-        self.num_events = num_events
-        self.W = tf.Variable(tf.truncated_normal(shape=(num_entities, num_dim), name="W-"+label))
-        self.W_events = tf.Variable(tf.truncated_normal(shape=(num_events, num_dim), name="W-events"))
-
-    def loss(self, lookup_entity, negative_entity, event_entities):
-        embed_pos = tf.nn.embedding_lookup(self.W, lookup_entity)
-        embed_neg = tf.nn.embedding_lookup(self.W, negative_entity)
-        embed_context = tf.reduce_sum(tf.nn.embedding_lookup(self.W_events, event_entities), 1)
-        sim_pos = tf.matmul(embed_pos, tf.transpose(embed_context))
-        sim_neg = tf.matmul(embed_neg, tf.transpose(embed_context))
-        loss = max_margin(sim_pos, sim_neg).loss() + 0.01*tf.nn.l2_loss(self.W) + 0.01*tf.nn.l2_loss(self.W_events)
-        return loss
-
-    def get_normalized_embeddings(self):
-        return normalize(self.W)
-
-    def evaluate_cosine_similarity(self, valid_dataset):
-        normalized_embeddings = self.get_normalized_embeddings()
-        valid_embeddings = tf.nn.embedding_lookup(normalized_embeddings, valid_dataset)
-        return tf.matmul(valid_embeddings, tf.transpose(normalized_embeddings))
-
-
-class RecurrentEventEmbedding(EventEmbedding):
-    def __init__(self, label, num_entities, num_dim):
-        # here num_entities is only number of variants
-        super(RecurrentEventEmbedding, self).__init__(label, num_entities, 0, num_dim)
-
-    def loss(self, lookup_entity, negative_entity, context_entities):
-        cell = tf.nn.rnn_cell.LSTMCell(self.num_dim)
-        context_embedding = tf.pack(context_entities)
-        context_embedding = tf.one_hot(context_embedding, 3)
-        context_embedding = tf.unstack(context_embedding)
-        outputs, state = tf.nn.rnn(cell, context_embedding, dtype=tf.float32)
-        embed_context = state[1] # take last state only
-        embed_pos = tf.nn.embedding_lookup(self.W, lookup_entity)
-        embed_neg = tf.nn.embedding_lookup(self.W, negative_entity)
-        score_pos = tf.matmul(embed_pos, tf.transpose(embed_context))
-        score_neg = tf.matmul(embed_neg, tf.transpose(embed_context))
-
-        loss = tf.reduce_mean(tf.maximum(0., 1. - score_pos + score_neg))
-        return loss
 
 
 def skipgram_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
@@ -480,25 +324,6 @@ def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_lab
     return loss
 
 
-def weighted_matrix_factorization(X):
-    with tf.Session() as sess:
-        X_norm = (X - X.min()) / (X.max() - X.min())
-        X_norm_np = np.array(X_norm)
-        X_t = tf.constant(X_norm_np, tf.float32)
-        W1 = tf.Variable(tf.truncated_normal([53, 100]), tf.float32)
-        W2 = tf.Variable(tf.truncated_normal([100, 57]), tf.float32)
-        loss = tf.reduce_mean(tf.square(X_t - tf.matmul(W1, W2)))  # + 0.0001 * (tf.nn.l2_loss(W1) + tf.nn.l2_loss(W2))
-        optimizer1 = tf.train.AdamOptimizer(0.05).minimize(loss)  # , var_list=[W1])
-        # optimizer2 = tf.train.AdamOptimizer(0.05).minimize(loss, var_list=[W2])
-        tf.global_variables_initializer().run()
-        prev_l = np.inf
-        for i in xrange(2000):
-            _, l = sess.run([optimizer1, loss])
-            print l, 100.0 * l / prev_l
-            prev_l = l
-        y, res1, res2 = sess.run([X_t, W1, W2])
-
-
 def ranking_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, right_ind):
     errl = []
     errr = []
@@ -538,47 +363,28 @@ def insight_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, r
         print r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Right Recommendations: ", [r_ent_dict[left] for left in top_ents_r]
 
 
-class EarlyStoppingMonitor(object):
-    def __init__(self, saver, n_checks, path_to_model):
-        """
-        Keeps track of the best overall model
-        :sess: tf session
-        :param saver: tf.train.saver
-        :param n_checks: validate improvement over last n_checks
-        :path_to_model: filesystem path to store model
-        """
-        self.perf_ckpts = []
-        self.n_checks = n_checks
-        self.path_to_model = path_to_model
-        self.saver = saver
-        self.best_value = np.inf
+def bernoulli_probs(ontology, relation_dictionary):
+    """
+    Obtain bernoulli probabilities for each relation
+    :param ontology:
+    :param relation_dictionary:
+    :return:
+    """
+    probs = dict()
+    relations = set(ontology.predicates(None, None))
+    for r in relations:
+        heads = set(ontology.subjects(r, None))
+        tph = 0
+        for h in heads:
+            tails = set(ontology.objects(h, r))
+            tph += len(tails)
+        tph = tph / (1.0 * len(heads))
 
-    def get_best_model(self, sess):
-        return
-
-    def check_performance(self, value, sess):
-        """
-        check current *value* against last_n ones
-        :param value:
-        :param sess: tf session to save
-        :return: True if stopping criterion is met, False otherwise
-        """
-        if len(self.perf_ckpts) < self.n_checks:
-            self.perf_ckpts.append(value)
-            return False
-        elif value < self.best_value:
-            self.best_value = value
-            self.saver.save(sess, self.path_to_model)
-            self.perf_ckpts.append(value)
-            return False
-        else:
-            early_stop = True
-            last_n_values = self.perf_ckpts[-self.n_checks]
-            for v in last_n_values:
-                if v > value:
-                    # if at least one value was worse than current one
-                    early_stop = False
-                    self.perf_ckpts.append(value)
-                else:
-                    early_stop = True
-            return early_stop
+        tails = set(ontology.objects(None, r))
+        hpt = 0
+        for t in tails:
+            heads = set(ontology.subjects(r, t))
+            hpt += len(heads)
+        hpt = hpt / (1.0 * len(tails))
+        probs[relation_dictionary[unicode(r)]] = tph / (tph + hpt)
+    return probs

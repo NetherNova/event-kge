@@ -92,7 +92,7 @@ def load_text_file(path):
     return g
 
 
-def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
+def update_amberg_ontology(ont, ent_dict, msg_dict, mod_dict, fe_dict, var_dict, data):
     """
     Update entities in ontology to ids of dictionaries
     Give new Ids to entities never seen before
@@ -107,7 +107,6 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
     #ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
     #ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
     #ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
-    entity_uri_to_data_id = dict()
     for i, (msg, id) in enumerate(msg_dict.iteritems()):
         fe_or_module_id = None
         fe_or_module = np.unique(data[data[message_column] == msg][fe_column])[0]
@@ -127,9 +126,8 @@ def update_ontology(ont, msg_dict, mod_dict, fe_dict, var_dict, data):
         # TODO: if both entries -> occursOn Module and FE
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
         # TODO: don't need to maintain fe_or_module_id? is updated anyway
-        entity_uri_to_data_id[str(amberg_ns['Event-'+str(id)])] = id
-        entity_uri_to_data_id[str(amberg_ns[fe_or_module])] = fe_or_module_id
-    return ont, entity_uri_to_data_id
+        ent_dict[str(amberg_ns['Event-'+str(id)])] = id
+        ent_dict[str(amberg_ns[fe_or_module])] = fe_or_module_id
 
 
 def get_unique_entities(data):
@@ -292,6 +290,15 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
     print "Processed %d sequences: " %(len(result))
     print "Overall length of sequence: ", overall_length
     return len(result)
+
+
+def embs_to_df(embs, reverse_dictionary):
+    colnames = ['x' + str(i) for i in range(embs.shape[1])]
+    df = pd.DataFrame(embs, columns=colnames)
+    df["id"] = [i for i in range(embs.shape[0])]
+    df["uri"] = [reverse_dictionary[k] for k in reverse_dictionary]
+    df = df.set_index("id")
+    return df
 
 
 def prepare_fe_log_file(merged, file_name):
