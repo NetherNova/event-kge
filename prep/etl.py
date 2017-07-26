@@ -53,12 +53,13 @@ def time_window(df, window_size, include_time=False):
     window_size: time window size in minutes
     """
     train = []
-    labels_dict = dict()
     off = pd.DateOffset(minutes=window_size)
-    for i in xrange(df.shape[0]):
-        window_start = df.iloc[i][time_column]
+    window_start = df.iloc[0][time_column]
+    last_entry = df.iloc[-1][time_column]
+    while window_start < last_entry:
         window_end = window_start + off
         local_window = df[window_start : window_end]
+        window_start = window_end
         # one sequence is a list of 3-tuples [[message, module, variant], [mesage, module, variant] ...]
         if include_time:
             train.append(local_window[[message_column, module_column, variant_column, time_column]].values.tolist())
@@ -252,13 +253,15 @@ def binary_sequences(sequences, index, unique_dict, classification_event=None):
     return train, labels
 
 
-def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size, max_seq, g_train):
+def prepare_sequences(data_frame, index, unique_dict, window_size, max_seq, g_train):
     """
-    Dumps pickle for sequences and dictionary
+
     :param data_frame:
-    :param file_name:
     :param index:
-    :param classification_event:
+    :param unique_dict:
+    :param window_size:
+    :param max_seq: for amberg maximum number of separated sequences to consider
+    :param g_train:
     :return:
     """
     train_data = time_window(data_frame, window_size)
@@ -274,7 +277,7 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
         overall_length += len(tmp_list)
         for event_entity in tmp_list:
             tmp_uri = amberg_ns['Event-' + str(event_entity)]
-            if (tmp_uri, None, None) not in g_train:
+            if (tmp_uri, None, None) not in g_train and (None, None, tmp_uri) not in g_train:
                 if tmp_uri in zero_shot_dict:
                     continue
                 else:
@@ -282,14 +285,13 @@ def prepare_sequences(data_frame, path_to_file, index, unique_dict, window_size,
             else:
                 non_zero_dict[tmp_uri] = True
     print result[:10]
-    print "Zero shot: ", len(zero_shot_dict)
-    print "Non zero: ", len(non_zero_dict)
-    pickle.dump(result, open(path_to_file + ".pickle", "wb"))
-    reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
-    pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
+    print "Zero shot events: ", len(zero_shot_dict)
+    print "Non zero shot events: ", len(non_zero_dict)
+    #reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
+    #pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
     print "Processed %d sequences: " %(len(result))
     print "Overall length of sequence: ", overall_length
-    return len(result)
+    return result
 
 
 def embs_to_df(embs, reverse_dictionary):

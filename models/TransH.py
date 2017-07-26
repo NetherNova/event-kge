@@ -6,7 +6,7 @@ import pickle
 
 class TransH(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, init_lr=1.0, skipgram=True, lambd=None):
+                 vocab_size, init_lr=1.0, skipgram=True, lambd=None, alpha=1.0):
         """
         Implements translation-based triplet scoring from negative sampling (TransH)
         :param num_entities:
@@ -27,6 +27,7 @@ class TransH(object):
         self.init_lr = init_lr
         self.skipgram = skipgram
         self.lambd = lambd
+        self.alpha = alpha
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, w_embs):
         lhs = ent_embs # [num_entities, d]
@@ -120,7 +121,7 @@ class TransH(object):
 
         if self.skipgram:
             sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
-            self.loss = kg_loss + sg_loss
+            self.loss = kg_loss + self.alpha * sg_loss
         else:
             self.loss = kg_loss
         self.global_step = tf.Variable(0, trainable=False)

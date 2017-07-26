@@ -7,7 +7,7 @@ from scipy.special import expit
 
 class RESCAL(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None, num_sequences=None, num_events=None):
+                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None, num_events=None, alpha=1.0):
         """
         RESCAL with max-margin loss (not Alternating least-squares)
         :param num_entities:
@@ -28,8 +28,8 @@ class RESCAL(object):
         self.init_lr = init_lr
         self.lambd = lambd
         self.event_layer = event_layer
-        self.num_sequences = num_sequences
         self.num_events = num_events
+        self.alpha = alpha
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
         lhs = ent_embs
@@ -86,18 +86,16 @@ class RESCAL(object):
 
         # RESCAL with ranking loss
         lhs = tf.expand_dims(lhs, 1) # [batch, 1, d] # zeile mal zeile
-        lhs = tf.reduce_sum(tf.mul(lhs, rell), 2)
+        lhs = tf.reduce_sum(tf.multiply(lhs, rell), 2) # [batch, 1, d] * [batch, d, d] ==> [batch, d]
 
         lhsn = tf.expand_dims(lhsn, 1)
-        lhsn = tf.reduce_sum(tf.mul(lhsn, relln), 2)
+        lhsn = tf.reduce_sum(tf.multiply(lhsn, relln), 2)
 
-        simi = tf.nn.sigmoid(tf.reduce_sum(tf.mul(lhs, rhs), 1))
-        simin = tf.nn.sigmoid(tf.reduce_sum(tf.mul(lhsn, rhsn), 1))
+        simi = tf.nn.sigmoid(tf.reduce_sum(tf.multiply(lhs, rhs), 1)) # [batch, d] * [batch, d]
+        simin = tf.nn.sigmoid(tf.reduce_sum(tf.multiply(lhsn, rhsn), 1))
         kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(self.E) + tf.nn.l2_loss(self.R))
 
         self.loss = kg_loss
-
-        mu = tf.constant(1.0)
 
         if self.event_layer == "Skipgram":
             # Skipgram Model
@@ -106,22 +104,22 @@ class RESCAL(object):
             sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
                                     self.train_labels)
-            self.loss += mu * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
+            self.loss += self.alpha * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
         elif self.event_layer == "LSTM":
             self.train_inputs = tf.placeholder(tf.int32,
                                                shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
             embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
-            self.loss += mu * concat_loss
+            self.loss += self.alpha  * concat_loss
         elif self.event_layer == "Concat":
             self.train_inputs = tf.placeholder(tf.int32,
                                                shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 2])
             embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
             concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,
-                                             self.train_labels, self.num_sequences)
-            self.loss += mu * concat_loss
+                                             self.train_labels)
+            self.loss += self.alpha  * concat_loss
         else:
             self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
@@ -133,10 +131,10 @@ class RESCAL(object):
 
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
-        self.ranking_error_l = rank_left_fn_idx(rescal_similarity, self.E, self.R, trans, ident_entity, self.test_inpr,
-                                                self.test_inpo)
-        self.ranking_error_r = rank_right_fn_idx(rescal_similarity, self.E, self.R, trans, ident_entity, self.test_inpl,
-                                                 self.test_inpo)
+        #self.ranking_error_l = rank_left_fn_idx(rescal_similarity, self.E, self.R, trans, ident_entity, self.test_inpr,
+        #                                        self.test_inpo)
+        #self.ranking_error_r = rank_right_fn_idx(rescal_similarity, self.E, self.R, trans, ident_entity, self.test_inpl,
+        #                                         self.test_inpo)
 
     def assign_initial(self, init_embeddings):
         return self.E.assign(init_embeddings)

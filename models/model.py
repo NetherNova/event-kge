@@ -87,9 +87,9 @@ def rank_left_fn_idx(simfn, embeddings_ent, embeddings_rel, leftop, rightop, inp
         # TODO: only use unique relations in rell / do in loop for rescal outside of TF
         expanded_lhs = tf.expand_dims(expanded_lhs, 2) # [entity_size, 1, 1, d] # TODO: was ist zeile und was ist Spalte in rell?
         # [entity_size, test_size, d]
-        expanded_lhs = tf.reduce_sum(tf.mul(expanded_lhs, rell), 3) # TODO: which dim to reduce? 2 or 3
+        expanded_lhs = tf.reduce_sum(tf.multiply(expanded_lhs, rell), 3) # TODO: which dim to reduce? 2 or 3
         # [entity_size, test_size, d] * [test_size, d]
-        simi = tf.nn.sigmoid(tf.transpose(tf.reduce_sum(tf.mul(expanded_lhs, rhs), 2)))
+        simi = tf.nn.sigmoid(tf.transpose(tf.reduce_sum(tf.multiply(expanded_lhs, rhs), 2)))
     else:
         batch_lhs = tf.transpose(leftop(expanded_lhs, rell), [1, 0, 2])
         batch_rhs = tf.transpose(tf.expand_dims(rhs, 1), [0, 2, 1])
@@ -113,9 +113,9 @@ def rank_right_fn_idx(simfn, embeddings_ent, embeddings_rel, leftop, rightop, in
     if simfn == rescal_similarity:
         lhs = tf.expand_dims(lhs, 1)
         # [test_size, 1, d]
-        lhs = tf.expand_dims(tf.reduce_sum(tf.mul(lhs, rell), 2), 1)
+        lhs = tf.expand_dims(tf.reduce_sum(tf.multiply(lhs, rell), 2), 1)
         # [test_size, 1, d] x [entity, d]
-        simi = tf.reduce_sum(tf.mul(lhs, rhs), 2)
+        simi = tf.reduce_sum(tf.multiply(lhs, rhs), 2)
         return tf.nn.sigmoid(simi)
     elif simfn == dot_similarity:
         rhs = tf.transpose(rhs)
@@ -284,7 +284,7 @@ def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     return loss
 
 
-def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_labels, num_sequences):
+def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     """
 
     :param vocab_size:

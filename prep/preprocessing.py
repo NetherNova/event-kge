@@ -26,7 +26,6 @@ class PreProcessor(object):
         self.rel_dict = dict()
         self.g = ConjunctiveGraph()
         self.unique_msgs = self.ent_dict.copy()
-        self.vocab_size = len(self.ent_dict)
 
     def load_knowledge_graph(self, format='xml', exclude_rels=[], clean_schema=True, amberg_params=None):
         self.g.load(self.kg_path, format = format)
@@ -38,9 +37,9 @@ class PreProcessor(object):
         if amberg_params:
             path_to_events = amberg_params[0]
             max_events = amberg_params[1]
-            merged = get_merged_dataframe(path_to_events, max_events)
-            unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
-            update_amberg_ontology(self.g, self.ent_dict, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
+            self.merged = get_merged_dataframe(path_to_events, max_events)
+            self.unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(self.merged)
+            update_amberg_ontology(self.g, self.ent_dict, self.unique_msgs, unique_mods, unique_fes, unique_vars, self.merged)
 
         self.update_entity_relation_dictionaries()
 
@@ -86,7 +85,6 @@ class PreProcessor(object):
         # sort ascending w.r.t. embedding id, in case of later stripping
         # self.ent_dict = sorted(self.ent_dict.items(), key=operator.itemgetter(1), reverse=False)
         self.unique_msgs = self.ent_dict.copy()
-        self.vocab_size = len(self.unique_msgs)
 
     def prepare_sequences(self, path_to_input, path_to_output):
         """
@@ -103,13 +101,11 @@ class PreProcessor(object):
                 entities = line.split(',')
                 result.append([int(e.strip()) for e in entities if int(e.strip()) in self.unique_msgs.values()])
         print "Preparing sequential data..."
-        print result[:10]
-        pickle.dump(result, open(path_to_output + ".pickle", "wb"))
         print "Processed %d sequences" % (len(result))
-        return len(result)
+        return result
 
     def get_vocab_size(self):
-        return self.vocab_size
+        return len(self.unique_msgs)
 
     def get_ent_dict(self):
         return self.ent_dict
@@ -119,3 +115,9 @@ class PreProcessor(object):
 
     def get_kg(self):
         return self.g
+
+    def get_unique_msgs(self):
+        return self.unique_msgs
+
+    def get_merged(self):
+        return self.merged
