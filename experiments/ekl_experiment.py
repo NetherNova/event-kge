@@ -21,7 +21,8 @@ import csv
 import itertools
 import matplotlib.pyplot as plt
 import pickle
-from rdflib import ConjunctiveGraph, RDF
+import sys
+from rdflib import ConjunctiveGraph, RDF, URIRef
 
 import numpy as np
 import pandas as pd
@@ -42,6 +43,22 @@ from prep.preprocessing import PreProcessor
 rnd = np.random.RandomState(42)
 
 
+def get_kg_statistics(g):
+    classes = set(g.objects(None, RDF.type))
+    for c in classes:
+        instances = set(g.subjects(RDF.type, c))
+        print "Class: %s: %d" %(c, len(instances))
+        out_num = 0
+        in_num = 0
+        for i in instances:
+            outgoing = list(g.predicate_objects(i))
+            incoming = list(g.subject_predicates(i))
+            out_num += len(outgoing)
+            in_num += len(incoming)
+        print "Out: %.2f " %(1.0*out_num / len(instances))
+        print "In: %.2f" %(1.0*in_num / len(instances))
+
+
 class Parameters(object):
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
@@ -52,7 +69,7 @@ def cross_parameter_eval(param_dict):
     return [dict(zip(keys, k)) for k in itertools.product(*param_dict.values())]
 
 
-def slice_ontology(ontology, valid_proportion, test_proportion, zero_shot_entities=[]):
+def slice_ontology(ontology, valid_proportion, test_proportion, zero_shot_triples=[]):
     """
     Slice ontology into two splits (train, test), with test *proportion*
     Work with copy of original ontology (do not modify)
@@ -68,22 +85,17 @@ def slice_ontology(ontology, valid_proportion, test_proportion, zero_shot_entiti
     # TODO: only correct if event entities occur in two triples?
     test_size = int(np.floor(test_proportion * len(ontology)))
     # add all zero_shot entities to test set and remove from overall ontology
-    if len(zero_shot_entities) > 0:
+    if len(zero_shot_triples) > 0:
         remove_triples = []
-        for zero_shot_uri in zero_shot_entities:
-            for p, o in ontology.predicate_objects(zero_shot_uri):
-                tmp_triple = (zero_shot_uri, p, o)
-                ont_test.add(tmp_triple)
-                remove_triples.append(tmp_triple)
-            for s, p in ontology.subject_predicates(zero_shot_uri):
-                tmp_triple = (s, p, zero_shot_uri)
-                ont_test.add(tmp_triple)
-                remove_triples.append(tmp_triple)
-    if len(ont_test) > test_size:
+        for zero_shot_triple in zero_shot_triples:
+            ont_test.add(zero_shot_triple)
+            remove_triples.append(zero_shot_triple)
+    n_test = len(ont_test)
+    if n_test > test_size:
         print "More zero shot triples than test proportion"
-        return
+        sys.exit(0)
     # remaining test size
-    test_size = test_size - len(ont_test)
+    test_size = test_size - n_test
     # random splits
     slice_indices = rnd.choice(range(0, len(ontology)), valid_size + test_size, replace=False)
     valid_indices = slice_indices[:valid_size]
@@ -219,6 +231,28 @@ def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path):
     return results, relation_results
 
 
+def get_zero_shot_scenario(g, type_uri, link, percent):
+    """
+    Get triples about entities of RDF:type *type_uri* with predicate *link*
+    :param type_uri:
+    :param link:
+    :param percent:
+    :return:
+    """
+    subs = list(g.subjects(RDF.type, type_uri))
+    triples = set()
+    for s in subs:
+        # check for both sides of link
+        for s,p,o in set(g.triples((s, link, None))).union(set(g.triples((None, link, s)))):
+            triples.add((s,p,o))
+    triples = list(triples)
+    n = len(triples)
+    n_reduced = int(np.floor(n * percent))
+    print "Found %d possible zero shot triples -- using %d" % (n, n_reduced)
+    indices = rnd.choice(range(n), n_reduced)
+    return [(URIRef(s), URIRef(p), URIRef(o)) for (s,p,o) in np.array(triples)[indices]]
+
+
 class TranslationModels:
     Trans_E, Trans_H, RESCAL = range(3)
 
@@ -281,13 +315,17 @@ if __name__ == '__main__':
         amberg_params = (path_to_events, max_events)
 
     preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params)
-    zero_shot_entities = []
     vocab_size = preprocessor.get_vocab_size()
     unique_msgs = preprocessor.get_unique_msgs()
     ent_dict = preprocessor.get_ent_dict()
     rel_dict = preprocessor.get_rel_dict()
     g = preprocessor.get_kg()
+
     print "Read %d number of triples" % len(g)
+    get_kg_statistics(g)
+
+    zero_shot_triples = get_zero_shot_scenario(g, URIRef('http://www.siemens.com/ontology/demonstrator#Material'),
+                                                URIRef('http://www.siemens.com/ontology/demonstrator#isMadeOf'), 0.47)
 
     ######### Model selection ##########
     model_type = TranslationModels.Trans_E
@@ -306,12 +344,12 @@ if __name__ == '__main__':
     param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
     num_epochs = 50
-    test_proportion = 0.05 # 0.2
+    test_proportion = 0.02 # 0.2
     validation_proportion = 0.01 # 0.1
     fnsim = l2_similarity
 
     # Train dev test splitting
-    g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion, zero_shot_entities)
+    g_train, g_valid, g_test = slice_ontology(g, validation_proportion, test_proportion, zero_shot_triples)
 
     train_size = len(g_train)
     valid_size = len(g_valid)
