@@ -272,10 +272,10 @@ class TranslationModels:
 
 if __name__ == '__main__':
     ####### PATH PARAMETERS ########
-    base_path = "./test_data/"
+    base_path = "./clones/"
     path_to_store_model = base_path + "Embeddings/"
     path_to_events = base_path + "Sequences/"
-    path_to_kg = base_path + "Ontology/amberg_inferred.xml"
+    path_to_kg = base_path + "Ontology/amberg_clone.rdf"
     path_to_store_sequences = base_path + "Sequences/"
     path_to_store_embeddings = base_path + "Embeddings/"
     traffic_data = False
@@ -308,10 +308,10 @@ if __name__ == '__main__':
         amberg_params = None
     else:
         exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
-        max_events = 5000
+        max_events = None
         max_seq = None
         # sequence window size in minutes
-        window_size = 3
+        window_size = 0.5
         amberg_params = (path_to_events, max_events)
 
     preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params)
@@ -324,8 +324,8 @@ if __name__ == '__main__':
     print "Read %d number of triples" % len(g)
     get_kg_statistics(g)
 
-    zero_shot_triples = get_zero_shot_scenario(g, URIRef('http://www.siemens.com/ontology/demonstrator#Material'),
-                                                URIRef('http://www.siemens.com/ontology/demonstrator#isMadeOf'), 0.47)
+    zero_shot_triples = get_zero_shot_scenario(g, URIRef('http://www.siemens.com/ontology/demonstrator#Device'),
+                                                URIRef('http://www.siemens.com/ontologies/amberg#hasSkill'), 0.5)
 
     ######### Model selection ##########
     model_type = TranslationModels.Trans_E
@@ -336,14 +336,14 @@ if __name__ == '__main__':
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [10, 20]
+    param_dict['embedding_size'] = [60]
     param_dict['seq_data_size'] = [1.0]
     param_dict['batch_size'] = [32]     # [32, 64, 128]
     param_dict['learning_rate'] = [0.05]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
     param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
-    num_epochs = 50
+    num_epochs = 80
     test_proportion = 0.02 # 0.2
     validation_proportion = 0.01 # 0.1
     fnsim = l2_similarity

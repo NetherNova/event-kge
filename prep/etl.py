@@ -53,18 +53,20 @@ def time_window(df, window_size, include_time=False):
     window_size: time window size in minutes
     """
     train = []
-    off = pd.DateOffset(minutes=window_size)
+    off = pd.Timedelta(minutes=window_size)
     window_start = df.iloc[0][time_column]
-    last_entry = df.iloc[-1][time_column]
-    while window_start < last_entry:
-        window_end = window_start + off
-        local_window = df[window_start : window_end]
-        window_start = window_end
-        # one sequence is a list of 3-tuples [[message, module, variant], [mesage, module, variant] ...]
-        if include_time:
-            train.append(local_window[[message_column, module_column, variant_column, time_column]].values.tolist())
-        else:
-            train.append(local_window[[message_column, module_column, variant_column]].values.tolist())
+    for i in xrange(1, len(df) - 1):
+        entry_time = df.iloc[i][time_column]
+        next_entry_time = df.iloc[i + 1][time_column]
+        diff = next_entry_time - entry_time
+        if diff > off:
+            local_window = df[window_start : entry_time]
+            # one sequence is a list of 3-tuples [[message, module, variant], [mesage, module, variant] ...]
+            if include_time:
+                train.append(local_window[[message_column, module_column, variant_column, time_column]].values.tolist())
+            else:
+                train.append(local_window[[message_column, module_column, variant_column]].values.tolist())
+            window_start = entry_time
     return train
 
 
@@ -105,25 +107,29 @@ def update_amberg_ontology(ont, ent_dict, msg_dict, mod_dict, fe_dict, var_dict,
     :param data:
     :return:
     """
-    #ont.add((base_ns['Material-Event'], RDFS.subClassOf, base_ns['Event']))
-    #ont.add((base_ns['Axis-Event'], RDFS.subClassOf, base_ns['Event']))
-    #ont.add((base_ns['Jam-Event'], RDFS.subClassOf, base_ns['Event']))
     for i, (msg, id) in enumerate(msg_dict.iteritems()):
         fe_or_module_id = None
-        fe_or_module = np.unique(data[data[message_column] == msg][fe_column])[0]
-        fe_or_module_id = fe_dict[fe_or_module]
-        if not fe_or_module:
-            fe_or_module = np.unique(data[data[message_column] == msg][module_column])[0]
-            fe_or_module_id = mod_dict[fe_or_module]
-            fe_or_module = fe_or_module.replace('odule', '').replace(' ', '')
+        fe_or_module = np.unique(data[data[message_column] == msg][fe_column])
+        if fe_or_module.shape[0] > 0:
+            fe_or_module_id = fe_dict[fe_or_module[0]]
+        if fe_or_module_id is None:
+            fe_or_module = np.unique(data[data[message_column] == msg][module_column])
+            if fe_or_module.shape[0] > 0:
+                fe_or_module_id = mod_dict[fe_or_module[0]]
+                fe_or_module = fe_or_module[0].replace('odule', '').replace(' ', '')
+        if not fe_or_module_id:
+            continue
         ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
-        ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module]))
+        ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module[0]]))
         if "Stau" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Event']))
         elif "Achse" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Event']))
         elif "F?llstand" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Event']))
         # TODO: if both entries -> occursOn Module and FE
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
         # TODO: don't need to maintain fe_or_module_id? is updated anyway
