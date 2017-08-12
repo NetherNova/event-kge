@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from model import l2_similarity, dot, trans, ident_entity, max_margin, skipgram_loss, ranking_error_triples
-import pickle
+from models.model import l2_similarity, dot, trans, ident_entity, max_margin, skipgram_loss, ranking_error_triples
 
 
 class TransH(object):

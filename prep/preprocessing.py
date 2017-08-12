@@ -1,9 +1,5 @@
-import pandas as pd
-import numpy as np
 from rdflib import ConjunctiveGraph, URIRef, RDF, RDFS, OWL, Literal
-import operator
-import pickle
-from etl import get_merged_dataframe, get_unique_entities, update_amberg_ontology
+from prep.etl import get_merged_dataframe, get_unique_entities, update_amberg_ontology
 
 
 schema_relations = [RDFS.subClassOf, RDFS.subPropertyOf, OWL.inverseOf, OWL.disjointWith, OWL.imports]
@@ -78,7 +74,7 @@ class PreProcessor(object):
                 try:
                     emb_id = int(split[1].strip())
                 except:
-                    print "Error reading id of %s in given dictionary" %line
+                    print("Error reading id of {0} in given dictionary".format(line))
                     # skip this event entitiy, treat it as common entitiy later on
                     continue
                 self.ent_dict[split[0]] = emb_id
@@ -100,8 +96,8 @@ class PreProcessor(object):
             for line in f:
                 entities = line.split(',')
                 result.append([int(e.strip()) for e in entities if int(e.strip()) in self.unique_msgs.values()])
-        print "Preparing sequential data..."
-        print "Processed %d sequences" % (len(result))
+        print("Preparing sequential data...")
+        print("Processed {0} sequences".format(len(result)))
         return result
 
     def get_vocab_size(self):

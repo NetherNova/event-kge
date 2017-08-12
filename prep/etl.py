@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import glob
 import numpy as np
-import pickle
 import csv
 from rdflib import ConjunctiveGraph, RDF, RDFS, OWL, Literal, URIRef, Namespace
 
@@ -33,10 +32,10 @@ event = base_ns["Event"]
 def read_data(path, max_events=None):
     """Read all csv-files in *path*, merge and sort by time"""
     all_files = glob.glob(os.path.join(path, '*.csv'))
-    print "Number of files: %s" %len(all_files)
+    print("Number of files: {0}".format(len(all_files)))
     df_from_each_file = (pd.read_csv(f, sep=';') for f in all_files)
     table = pd.concat(df_from_each_file, ignore_index=True)
-    print "Number of events: %s" %table.shape[0]
+    print("Number of events: {0}".format(table.shape[0]))
     # set timestamp as index and sort ascending
     table[time_column] = pd.to_datetime(table[time_column], format="%d.%m.%Y %H:%M:%S")
     table = table.set_index(pd.DatetimeIndex(table[time_column]))
@@ -55,7 +54,7 @@ def time_window(df, window_size, include_time=False):
     train = []
     off = pd.Timedelta(minutes=window_size)
     window_start = df.iloc[0][time_column]
-    for i in xrange(1, len(df) - 1):
+    for i in range(1, len(df) - 1):
         entry_time = df.iloc[i][time_column]
         next_entry_time = df.iloc[i + 1][time_column]
         diff = next_entry_time - entry_time
@@ -167,7 +166,6 @@ def get_messages_to_module(dataframe):
     #message_to_module = pd.read_csv("/home/nether-nova/Documents/Amberg Events/test_data/unique_messages.txt", sep=",",
     #                                header=None)
     me2m = dict(zip(message_to_module[:, 0], message_to_module[:, 1]))
-    print me2m
     return me2m
 
 
@@ -200,30 +198,11 @@ def get_messages_to_fe(message_to_module_dict):
 
     messages_to_fe_df = pd.DataFrame(zip(messages_to_fe.keys(), messages_to_fe.values()), columns=["Meldetext", "FE"])
 
-    print messages_to_fe_df.head(10)
+    print(messages_to_fe_df.head(10))
     # messages_to_fe_df.to_csv("./test_data/messages_to_fe.txt", sep=",", quotechar='"')
     # reverse_messages_to_fe = dict(zip(messages_to_fe.values(), messages_to_fe.keys()))
 
     return messages_to_fe_df
-
-
-# path = "/home/nether-nova/Documents/Amberg Events/test_data/"
-# max_events = 5000
-# window_size = 3
-# df = read_data(path, max_events)
-# fe_df = pd.read_csv(path + "messages_to_fe.txt")
-# merged = pd.merge(df, fe_df, on="Meldetext")
-# # merged[module_column] = merged["FE"]    # replace module column with FE-Module
-# merged = merged.set_index(pd.DatetimeIndex(merged[time_column]))
-# merged = merged.sort_index(ascending=True)s
-# unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(merged)
-# # includes relations
-# ontology = read_ontology(path + "./amberg_inferred.xml")
-# print "Read %d number of triples" % len(ontology)
-# ont, uri_to_id = update_ontology(ontology, unique_msgs, unique_mods, unique_fes, unique_vars, merged)
-# print "Number of triples: ", len(ont)
-# for k in uri_to_id:
-#     print k, [t for t in ont.triples((URIRef(k), None, None))]
 
 
 def get_merged_dataframe(path, max_events):
@@ -275,7 +254,7 @@ def prepare_sequences(data_frame, index, unique_dict, window_size, max_seq, g_tr
     overall_length = 0
     zero_shot_dict = dict()
     non_zero_dict = dict()
-    print "Preparing sequential data..."
+    print("Preparing sequential data...")
     for i, seq in enumerate(train_data[:max_seq]):
         local_entities = [event[index] for event in seq]
         tmp_list = [unique_dict[entity] for entity in local_entities]
@@ -290,13 +269,13 @@ def prepare_sequences(data_frame, index, unique_dict, window_size, max_seq, g_tr
                     zero_shot_dict[tmp_uri] = True
             else:
                 non_zero_dict[tmp_uri] = True
-    print result[:10]
-    print "Zero shot events: ", len(zero_shot_dict)
-    print "Non zero shot events: ", len(non_zero_dict)
+    print(result[:10])
+    print("Zero shot events: ", len(zero_shot_dict))
+    print("Non zero shot events: ", len(non_zero_dict))
     #reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
     #pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
-    print "Processed %d sequences: " %(len(result))
-    print "Overall length of sequence: ", overall_length
+    print("Processed {0} sequences: ".format(len(result)))
+    print("Overall length of sequence: ", overall_length)
     return result
 
 

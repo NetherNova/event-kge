@@ -88,8 +88,8 @@ class TripleBatchGenerator(object):
         self.relation_dictionary = relation_dictionary
         self.sample_negative = sample_negative
         self.bern_probs = bern_probs
-        self.ent_array = np.array(self.entity_dictionary.values())
-        self.ids_in_ent_dict = dict(zip(self.ent_array, range(0, len(self.ent_array))))
+        self.ent_array = np.array(list(self.entity_dictionary.values()))
+        self.ids_in_ent_dict = dict(list(zip(list(self.ent_array), range(0, self.ent_array.size))))
 
         for (s, p, o) in sorted(triples):
             s = unicode(s)
@@ -126,11 +126,11 @@ class TripleBatchGenerator(object):
             current_triple = self.all_triples[self.batch_index]
             # Append current triple with *num_neg_samples* triples
             if self.sample_negative:
-                for i in xrange(self.num_neg_samples):
+                for i in range(self.num_neg_samples):
                     inpl.append(current_triple[0])
                     inpr.append(current_triple[2])
                     inpo.append(current_triple[1])
-                    rn, ln, on = self.get_negative_sample(current_triple)
+                    rn, ln, on = self.get_negative_sample(*current_triple)
                     inpln.append(ln)
                     inprn.append(rn)
                     inpon.append(on)
@@ -141,7 +141,7 @@ class TripleBatchGenerator(object):
             self.batch_index += 1
         return np.array([inpr, inpl, inpo]), np.array([inprn, inpln, inpon])
 
-    def get_negative_sample(self, (s_ind,p_ind,o_ind), left_probability=0.5):
+    def get_negative_sample(self, s_ind, p_ind, o_ind, left_probability=0.5):
         """
         Uniform sampling (avoiding correct triple from being sampled again)
         :param left_probability:
@@ -151,12 +151,12 @@ class TripleBatchGenerator(object):
             # with (tph / (tph + hpt)) probability we sample a *head*
             left_probability = self.bern_probs[p_ind]
         if self.rnd.binomial(1, left_probability) > 0:
-            mask = np.ones(len(self.ent_array), dtype=bool)
+            mask = np.ones(self.ent_array.size, dtype=bool)
             mask[self.ids_in_ent_dict[s_ind]] = 0
             sample_set = self.ent_array[mask]
             s_ind = self.rnd.choice(sample_set, 1)[0]
         else:
-            mask = np.ones(len(self.ent_array), dtype=bool)
+            mask = np.ones(self.ent_array.size, dtype=bool)
             mask[self.ids_in_ent_dict[o_ind]] = 0
             sample_set = self.ent_array[mask]
             o_ind = self.rnd.choice(sample_set, 1)[0]

@@ -259,11 +259,19 @@ def lstm_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
 
 
 def composition_rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
-    W = tf.Variable(
-        tf.truncated_normal([vocab_size, embedding_size],
-                            stddev=1.0 / tf.sqrt(tf.constant(embedding_size, dtype=tf.float32))))
+    """
 
-
+    :param vocab_size:
+    :param num_sampled:
+    :param embed: [batch_size, len_sequence, embedding_size]
+    :param embedding_size:
+    :param train_labels:
+    :return:
+    """
+    event_list = tf.unstack(embed, axis=1)
+    cell = ComposistionRNN(50, embedding_size)
+    outputs, state = tf.nn.rnn(cell, event_list, dtype=tf.float32)
+    embed_context = state  # take last hidden state
 
 
 def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
@@ -298,7 +306,7 @@ def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_lab
     # TODO: sequence number as paragraph id?
     # W_seq = tf.Variable(tf.truncated_normal([num_sequences, embedding_size]))
 
-    sequence_ids, train_labels = tf.split(1, 2, train_labels)     # TODO: extract first index as sequence index
+    # sequence_ids, train_labels = tf.split(train_labels, 2, axis=1)     # TODO: extract first index as sequence index
 
     #sequence_vectors = tf.squeeze(tf.nn.embedding_lookup(W_seq, sequence_ids), axis=1)
 
@@ -359,8 +367,8 @@ def insight_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, r
         # *l* is the correct index
         scores_r[i, rmv_idx_r] = -np.inf
         top_ents_r = np.argsort(-scores_r[i, :])[:10]
-        print r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Left Recommendations: ", [r_ent_dict[left] for left in top_ents_l]
-        print r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Right Recommendations: ", [r_ent_dict[left] for left in top_ents_r]
+        print(r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Left Recommendations: ", [r_ent_dict[left] for left in top_ents_l])
+        print(r_ent_dict[l], r_rel_dict[o], r_ent_dict[r], "Right Recommendations: ", [r_ent_dict[left] for left in top_ents_r])
 
 
 def bernoulli_probs(ontology, relation_dictionary):
@@ -388,3 +396,29 @@ def bernoulli_probs(ontology, relation_dictionary):
         hpt = hpt / (1.0 * len(tails))
         probs[relation_dictionary[unicode(r)]] = tph / (tph + hpt)
     return probs
+
+
+class ComposistionRNN(object):#tf.contrib.rnn_cell.BasicRNNCell):
+    """
+    Semantic compposition RNN using recursive concatentation
+    """
+    def __init__(self, num_units, embedding_size, activation=None, reuse=None):
+        super(tf.nn.rnn_cell.BasicRNNCell, self).__init__(_reuse=reuse)
+        self._num_units = num_units
+        self._activation = activation or tf.ops.math_ops.tanh
+
+        self.W = tf.Variable(
+            tf.truncated_normal([num_units, num_units + embedding_size],
+                                stddev=1.0 / tf.sqrt(tf.constant(num_units + embedding_size, dtype=tf.float32))))
+
+    @property
+    def state_size(self):
+        return self._num_units
+
+    @property
+    def output_size(self):
+        return self.num_units
+
+    def call(self, inputs, state):
+        output = tf.multiply(self.W, tf.concat([state, inputs], axis=1))
+        return output, output

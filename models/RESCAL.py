@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, \
+from models.model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, \
     rescal_similarity, lstm_loss, concat_window_loss
 from scipy.special import expit
 
