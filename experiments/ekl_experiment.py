@@ -26,7 +26,6 @@ from rdflib import ConjunctiveGraph, RDF, URIRef
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import tensorflow as tf
 from sklearn.manifold import TSNE
 
@@ -109,24 +108,6 @@ def slice_ontology(ontology, valid_proportion, test_proportion, zero_shot_triple
         else:
             ont_train.add((s, p, o))
     return ont_train, ont_valid, ont_test
-
-
-def plot_embeddings(embs, reverse_dictionary):
-    tsne = TSNE(perplexity=30, n_components=2, init='pca', n_iter=5000)
-    low_dim_embs = tsne.fit_transform(embs)
-    df = pd.DataFrame(low_dim_embs, columns=['x1', 'x2'])
-    sns.lmplot('x1', 'x2', data=df, scatter=True, fit_reg=False)
-
-    for i in range(low_dim_embs.shape[0]):
-        if i not in reverse_dictionary:
-            continue
-        x, y = low_dim_embs[i, :]
-        plt.annotate(reverse_dictionary[i],
-                     xy=(x, y),
-                     xytext=(5, 2),
-                     textcoords='offset points',
-                     ha='right',
-                     va='bottom')
 
 
 def get_low_dim_embs(embs, reverse_dictionary, dim=2):
