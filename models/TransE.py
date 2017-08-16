@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from models.model import dot_similarity, dot, max_margin, skipgram_loss, lstm_loss, concat_window_loss, rnn_loss, trans, ident_entity
+from models.model import dot_similarity, dot, max_margin, skipgram_loss, cnn_loss, concat_window_loss, rnn_loss, trans, ident_entity
 
 
 class TransE(object):
@@ -114,11 +114,11 @@ class TransE(object):
             sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
                                     self.train_labels)
             self.loss += self.alpha * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
-        elif self.event_layer == "LSTM":
+        elif self.event_layer == "CNN":
             self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events]) # TODO: skip window size
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
             embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
+            concat_loss = cnn_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
             self.loss += self.alpha * concat_loss
         elif self.event_layer == "RNN":
             self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events]) # TODO: skip window size

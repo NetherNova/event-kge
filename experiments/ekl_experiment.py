@@ -91,6 +91,8 @@ def slice_ontology(ontology, valid_proportion, test_proportion, zero_shot_triple
         for zero_shot_triple in zero_shot_triples:
             ont_test.add(zero_shot_triple)
             remove_triples.append(zero_shot_triple)
+        for s,p,o in remove_triples:
+            ontology.remove((s,p,o))
     n_test = len(ont_test)
     if n_test > test_size:
         print("More zero shot triples than test proportion")
@@ -251,7 +253,8 @@ def get_zero_shot_scenario(g, type_uri, link, percent):
     n_reduced = int(np.floor(n * percent))
     print("Found {0} possible zero shot triples -- using {1}".format(n, n_reduced))
     indices = rnd.choice(range(n), n_reduced)
-    return [(URIRef(s), URIRef(p), URIRef(o)) for (s,p,o) in np.array(triples)[indices]]
+    kg_prop = n_reduced / (len(g) * 1.0)
+    return [(URIRef(s), URIRef(p), URIRef(o)) for (s,p,o) in np.array(triples)[indices]], kg_prop
 
 
 class TranslationModels:
@@ -285,7 +288,7 @@ if __name__ == '__main__':
     routing_data = False
     path_to_sequence = base_path + 'Sequences/sequence.txt'
     num_sequences = None
-    pre_train = False
+    pre_train = True
     supp_event_embeddings = base_path + "Embeddings/supplied_embeddings.pickle"
 
     preprocessor = PreProcessor(path_to_kg)
@@ -311,7 +314,7 @@ if __name__ == '__main__':
         amberg_params = None
     else:
         exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
-        max_events = 1000
+        max_events = None
         max_seq = None
         # sequence window size in minutes
         window_size = 0.5
@@ -327,8 +330,11 @@ if __name__ == '__main__':
     print("Read {0} number of triples".format(len(g)))
     get_kg_statistics(g)
 
-    zero_shot_triples = [] # get_zero_shot_scenario(g, URIRef('http://purl.oclc.org/NET/ssnx/ssn#Device'),
-                        #                    URIRef('http://www.siemens.com/ontologies/amberg#hasSkill'), 1.0)
+    #zero_shot_prop = 0.75
+    #zero_shot_entity =  URIRef('http://www.siemens.com/ontology/demonstrator#Event') #URIRef('http://purl.oclc.org/NET/ssnx/ssn#Device')
+    #zero_shot_relation = URIRef(RDF.type) # URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#follows') # URIRef('http://www.siemens.com/ontology/demonstrator#involvedEquipment') URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#hasPart')
+    #zero_shot_triples, kg_prop = get_zero_shot_scenario(g, zero_shot_entity, zero_shot_relation, zero_shot_prop)
+    zero_shot_triples = []
 
     ######### Model selection ##########
     model_type = TranslationModels.Trans_E
@@ -339,16 +345,16 @@ if __name__ == '__main__':
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [40, 60, 80]
+    param_dict['embedding_size'] = [100]
     param_dict['seq_data_size'] = [1.0]
     param_dict['batch_size'] = [32]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.01, 0.05]     # [0.5, 0.8, 1.0]
+    param_dict['learning_rate'] = [0.05]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
     param_dict['alpha'] = [1.0]     # event embedding weighting
-    eval_step_size = 2000
+    eval_step_size = 1000
     num_epochs = 100
-    test_proportion = 0.2 # 0.2
-    validation_proportion = 0.05 # 0.1
+    test_proportion = 0.2
+    validation_proportion = 0.1 # 0.1
     fnsim = l2_similarity
 
     # Train dev test splitting
@@ -363,10 +369,10 @@ if __name__ == '__main__':
 
     # SKIP Parameters
     if event_layer is not None:
-        param_dict['num_skips'] = [2, 3]   # [2, 4]
+        param_dict['num_skips'] = [4]   # [2, 4]
         param_dict['num_sampled'] = [7]     # [5, 9]
         # param_dict['batch_size_sg'] = [2]     # [128, 512]
-        pre_train_steps = 5000
+        pre_train_steps = 10000
         if routing_data or traffic_data:
             sequences = preprocessor.prepare_sequences(path_to_sequence)
         else:
@@ -394,7 +400,7 @@ if __name__ == '__main__':
     valid_tg = TripleBatchGenerator(g_valid, ent_dict, rel_dict, 1, rnd, sample_negative=False)
     test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, rnd, sample_negative=False)
 
-    print(train_tg.next(5))
+    print(test_tg.next(5))
 
     # Loop trough all hyper-paramter combinations
     param_combs = cross_parameter_eval(param_dict)
@@ -410,6 +416,7 @@ if __name__ == '__main__':
 
         if event_layer:
             batch_size_sg = (num_sequences * num_epochs) / num_steps
+            print("Batch size sg:", batch_size_sg)
             num_skips = params.num_skips
             num_sampled = params.num_sampled
             if pre_train:
@@ -602,7 +609,8 @@ if __name__ == '__main__':
                                    encoding='utf-8')
 
     # Reset graph, load best model and apply to test data set
-    with open(base_path + 'evaluation_parameters_' + model_name + '_best.csv', "wb") as eval_file:
+    with open(base_path + 'evaluation_parameters_' + model_name +
+                      '_best.csv', "wb") as eval_file:
         writer = csv.writer(eval_file)
         results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global)
         writer.writerow (

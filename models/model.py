@@ -282,13 +282,65 @@ def rnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
     bias = tf.Variable(tf.truncated_normal([vocab_size]))
 
     # [batch_size, num_steps, embedding_size] into list of [batch_size, embedding_size]
-    event_list = tf.unstack(embed, axis=1)
-    cell = tf.nn.rnn_cell.BasicRNNCell(embedding_size)
-    outputs, state = tf.nn.rnn(cell, event_list, dtype=tf.float32)
-    embed_context = state  # take last hidden state
+    # event_list = tf.unstack(embed, axis=1)
+    cell = tf.contrib.rnn.BasicLSTMCell(embedding_size)
+    outputs, state = tf.nn.dynamic_rnn(cell, embed, dtype=tf.float32)
+    last = tf.slice(outputs, [0, embed.get_shape()[1].value - 1, 0], [embed.get_shape()[0].value, 1,
+                                                                  embedding_size])
+    last = tf.squeeze(last, axis=1)
+    loss = tf.reduce_mean(
+        tf.nn.nce_loss(weights=W,
+                       biases=bias,
+                       labels=train_labels,
+                       inputs=last,
+                       num_sampled=num_sampled,
+                       num_classes=vocab_size,
+                       remove_accidental_hits=True))
+    return loss
 
-    logits = tf.matmul(embed_context, tf.transpose(W)) + bias
-    loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits, tf.reshape(train_labels, [-1])))
+
+def extract_axis_1(data, ind):
+    """
+    Get specified elements along the first axis of tensor.
+    :param data: Tensorflow tensor that will be subsetted.
+    :param ind: Indices to take (one for each element along axis 0 of data).
+    :return: Subsetted tensor.
+    """
+
+    batch_range = tf.range(tf.shape(data)[0])
+    indices = tf.stack([batch_range, ind], axis=1)
+    res = tf.gather_nd(data, indices)
+
+    return res
+
+
+def cnn_loss(vocab_size, num_sampled, embed, embedding_size, train_labels):
+    # [batch_size, num_steps, embedding_size] into list of [batch_size, embedding_size]
+    num_filters = 20
+    embed_context = tf.expand_dims(embed, axis=3)
+    W_conv = tf.Variable(tf.random_normal([embed.get_shape()[1].value, embed.get_shape()[1].value, 1, num_filters]))
+    b_conv = tf.Variable(tf.random_normal([num_filters]))
+
+    net = tf.nn.conv2d(input=embed_context, name='layer_conv2',
+                         filter=W_conv, strides=[1, 1, 1, 1],
+                         padding='VALID')
+    act = tf.nn.relu(tf.nn.bias_add(net, b_conv))
+    act = tf.contrib.layers.flatten(act)
+
+    W = tf.Variable(
+        tf.truncated_normal([vocab_size, act.get_shape()[1].value],
+                            stddev=1.0 / tf.sqrt(tf.constant(act.get_shape()[0].value, dtype=tf.float32))))
+    bias = tf.Variable(tf.truncated_normal([vocab_size]))
+
+    # Softmax of cnn activation vectors
+    loss = tf.reduce_mean(
+        tf.nn.nce_loss(weights=W,
+                       biases=bias,
+                       labels=train_labels,
+                       inputs=act,
+                       num_sampled=num_sampled,
+                       num_classes=vocab_size,
+                       remove_accidental_hits=True))
     return loss
 
 
