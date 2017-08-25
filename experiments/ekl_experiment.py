@@ -165,7 +165,7 @@ def bernoulli_probs(ontology, relation_dictionary):
     return probs
 
 
-def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path, tk=None):
+def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path):
     tf.reset_default_graph()
     with tf.Session() as session:
         # Need to instantiate model again
@@ -188,25 +188,7 @@ def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path, tk=N
         test_inpl = test_batch_pos[1, :]
         test_inpr = test_batch_pos[0, :]
         test_inpo = test_batch_pos[2, :]
-        if model_type == TranslationModels.Trans_H:
-            r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict=feed_dict)
-            scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs, w_embs)
-            scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs, w_embs)
-        elif model_type == TranslationModels.TEKE:
-            n_h_test = tk.get_pointwise(test_inpl)
-            entities_all = tk.get_pointwise()
-            n_t_test = tk.get_pointwise(test_inpr)
-            ht_test_all = None
-            ht_all_test = None
-
-            r_embs, embs, A = session.run([model.R, model.E, model.A], feed_dict={})
-            scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs, A, entities_all, n_t_test)
-            scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs, A, n_h_test, entities_all)
-        else:
-            r_embs, embs = session.run([model.R, model.E], feed_dict={})
-            scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs)
-            scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs)
-
+        scores_l, scores_r = model.scores(test_inpl, test_inpr, test_inpo)
         errl, errr = ranking_error_triples(filter_triples, scores_l, scores_r, test_inpl, test_inpo, test_inpr)
 
     # END OF SESSION
@@ -367,6 +349,7 @@ if __name__ == '__main__':
     param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
     num_epochs = 100
+    num_negative_triples = 2
     test_proportion = 0.2
     validation_proportion = 0.1 # 0.1
     fnsim = l2_similarity
@@ -410,7 +393,7 @@ if __name__ == '__main__':
     overall_best_performance = np.inf
     best_param_list = []
 
-    train_tg = TripleBatchGenerator(g_train, ent_dict, rel_dict, 1, rnd, bern_probs=bern_probs)
+    train_tg = TripleBatchGenerator(g_train, ent_dict, rel_dict, num_negative_triples, rnd, bern_probs=bern_probs)
     valid_tg = TripleBatchGenerator(g_valid, ent_dict, rel_dict, 1, rnd, sample_negative=False)
     test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, rnd, sample_negative=False)
 
@@ -484,7 +467,7 @@ if __name__ == '__main__':
                         new_id = unique_msgs[event_id]
                         initE[new_id] = supplied_embeddings.get_embeddings()[emb_id]
             tk = TEKEPreparation(sequences, initE, num_entities)
-            param_list = [num_entities, num_relations, params.embedding_size, params.batch_size, fnsim]
+            param_list = [num_entities, num_relations, params.embedding_size, params.batch_size, fnsim, tk]
             model = TEKE(*param_list)
 
         # Build tensorflow computation graph
@@ -521,63 +504,35 @@ if __name__ == '__main__':
 
             # Steps loop
             for b in range(1, num_steps + 1):
+                # triple batches
                 batch_pos, batch_neg = train_tg.next(params.batch_size)
                 valid_batch_pos, _ = valid_tg.next(valid_size)
                 # Event batches
                 batch_x, batch_y = sg.next(batch_size_sg)
                 batch_y = np.array(batch_y).reshape((batch_size_sg, 1))
 
-                if model_type == TranslationModels.TEKE:
-                    n_x_h, n_x_t, n_x_hn, n_x_tn = tk.get_pointwise_batch(batch_pos, batch_neg)
-                    xy, xy_n = tk.get_pairwise_batch(batch_pos, batch_neg)
-                    feed_dict = {
-                        model.inpl: batch_pos[1, :], model.inpr: batch_pos[0, :], model.inpo: batch_pos[2, :],
-                        model.inpln: batch_neg[1, :], model.inprn: batch_neg[0, :], model.inpon: batch_neg[2, :],
-                        model.train_inputs: batch_x, model.train_labels: batch_y,
-                        model.n_x_h : n_x_h, model.n_x_t : n_x_t,
-                        model.n_x_hn: n_x_hn, model.n_x_tn: n_x_tn,
-                        model.global_step: b
-                    }
-                else:
-                # calculate valid indices for scoring
-                    feed_dict = {
+                feed_dict = {
                         model.inpl: batch_pos[1, :], model.inpr: batch_pos[0, :], model.inpo: batch_pos[2, :],
                         model.inpln: batch_neg[1, :], model.inprn: batch_neg[0, :], model.inpon: batch_neg[2, :],
                         model.train_inputs: batch_x, model.train_labels: batch_y,
                         model.global_step: b
-                    }
+                }
                 # One train step in mini-batch
                 _, l = session.run(model.train(), feed_dict=feed_dict)
-
                 average_loss += l
                 # Run post-ops: regularization etc.
                 session.run(model.post_ops())
                 # Evaluate on validation set
                 if b % eval_step_size == 0:
+                    # get valid batches for scoring
                     valid_inpl = valid_batch_pos[1, :]
                     valid_inpr = valid_batch_pos[0, :]
                     valid_inpo = valid_batch_pos[2, :]
-                    if model_type == TranslationModels.Trans_H:
-                        r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict=feed_dict)
-                        scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs, w_embs)
-                        scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs, w_embs)
-                    elif model_type == TranslationModels.TEKE:
-                        n_h_test = tk.get_pointwise(valid_inpl)
-                        entities_all = tk.get_pointwise()
-                        n_t_test = tk.get_pointwise(valid_inpr)
-                        ht_test_all = None
-                        ht_all_test = None
 
-                        r_embs, embs, A = session.run([model.R, model.E, model.A], feed_dict={})
-                        scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs, A, entities_all, n_t_test)
-                        scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs, A, n_h_test, entities_all)
-                    else:
-                        r_embs, embs = session.run([model.R, model.E], feed_dict={})
-                        scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs)
-                        scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs)
-
+                    scores_l, scores_r = model.scores(valid_inpl, valid_inpr, valid_inpo)
                     errl, errr = ranking_error_triples(filter_triples, scores_l, scores_r, valid_inpl,
                                                        valid_inpo, valid_inpr)
+
                     hits_10 = np.mean(np.asarray(errl + errr) <= 10) * 100
                     mean_rank = np.mean(np.asarray(errl + errr))
                     mean_rank_list.append(mean_rank)
@@ -627,10 +582,7 @@ if __name__ == '__main__':
     with open(base_path + 'evaluation_parameters_' + model_name +
                       '_best.csv', "wb") as eval_file:
         writer = csv.writer(eval_file)
-        if tk is not None:
-            results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global, tk)
-        else:
-            results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global)
+        results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global)
         writer.writerow (
                 ["relation", "embedding_size", "batch_size", "learning_rate", "num_skips", "num_sampled",
                  "batch_size_sg", "mean_rank", "mrr", "hits_top_10", "hits_top_3", "hits_top_1"]

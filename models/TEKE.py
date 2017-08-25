@@ -4,7 +4,7 @@ from models.model import dot_similarity, dot, max_margin, skipgram_loss, lstm_lo
 
 
 class TEKE(object):
-    def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, fnsim, init_lr=1.0, alpha=1.0):
+    def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, fnsim, tk, init_lr=1.0, alpha=1.0):
         """
         Implements translation-based triplet scoring from negative sampling (TransE)
         :param num_entities:
@@ -28,17 +28,17 @@ class TEKE(object):
         self.fnsim = fnsim
         self.init_lr = init_lr
         self.alpha = alpha
+        self.tk = tk
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, A, n_h, n_t):
-        # every unique combination of inpr inpo
-        results = np.zeros((len(test_inpr), ent_embs.shape[0]))
 
         lhs = n_h.dot(A) + ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
         rhs = n_t.dot(A) + ent_embs[test_inpr]
         unique_lhs = lhs[:, np.newaxis] + unique_rell
-
+        results = np.zeros((len(test_inpr), ent_embs.shape[0]))
+        # every unique combination of inpr inpo
         for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:,0]
             tmp_lhs = unique_lhs[:, r, :]
@@ -70,11 +70,7 @@ class TEKE(object):
         self.A = tf.Variable(tf.random_uniform((self.embedding_size, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound), name="A")
 
-        self.n_x_h = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
-        self.n_x_t = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
-
-        self.n_x_hn = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
-        self.n_x_tn = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
+        self.N = tf.constant(self.tk.get_pointwise())
 
         self.normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
         self.normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
@@ -86,6 +82,12 @@ class TEKE(object):
         self.inprn = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhsn")
         self.inpln = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhsn")
         self.inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="relln")
+
+        n_h = tf.nn.embedding_lookup(self.N, self.inpl)
+        n_t = tf.nn.embedding_lookup(self.N, self.inpr)
+
+        n_hn = tf.nn.embedding_lookup(self.N, self.inpln)
+        n_tn = tf.nn.embedding_lookup(self.N, self.inprn)
 
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
         rhs = tf.nn.embedding_lookup(self.E, self.inpr)
@@ -120,9 +122,6 @@ class TEKE(object):
 
         self.reg1 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(self.n_x_h, self.A)**2, axis=1)) - 1))
         self.reg2 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(self.n_x_t, self.A) ** 2, axis=1)) - 1))
-        #reg2_z = dot(self.W, self.R) ** 2
-        #reg2_n = tf.expand_dims(tf.sqrt(tf.reduce_sum(self.R ** 2, axis=1)), 1)
-        #reg2 = tf.reduce_sum(tf.maximum(0., (reg2_z / reg2_n) - epsilon))
 
         self.loss = kg_loss
 
@@ -142,4 +141,14 @@ class TEKE(object):
         return [self.optimizer, self.loss]
 
     def variables(self):
-        return [self.E, self.R, self.A]
+        return [self.E, self.R, self.A, self.N]
+
+    def scores(self, session, inpl, inpr, inpo):
+        n_h_test = self.tk.get_pointwise(inpl)
+        entities_all = self.tk.get_pointwise()
+        n_t_test = self.tk.get_pointwise(inpr)
+
+        r_embs, embs, A = session.run([model.R, model.E, model.A], feed_dict={})
+        scores_l = model.rank_left_idx(inpr, inpo, r_embs, embs, A, entities_all, n_t_test)
+        scores_r = model.rank_right_idx(inpl, inpo, r_embs, embs, A, n_h_test, entities_all)
+        return scores_l, scores_r

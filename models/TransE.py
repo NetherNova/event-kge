@@ -82,7 +82,6 @@ class TransE(object):
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
         rhs = tf.nn.embedding_lookup(self.E, self.inpr)
         rell = tf.nn.embedding_lookup(self.R, self.inpo)
-        #relr = tf.nn.embedding_lookup(self.R, self.inpo)
 
         lhsn = tf.nn.embedding_lookup(self.E, self.inpln)
         rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
@@ -150,3 +149,10 @@ class TransE(object):
 
     def variables(self):
         return [self.E, self.R]
+
+    def scores(self, session, inpl, inpr, inpo):
+        # need to get embeddings out of tf into python numpy
+        r_embs, embs = session.run([self.R, self.E], feed_dict={})
+        scores_l = model.rank_left_idx(inpr, inpo, r_embs, embs)
+        scores_r = model.rank_right_idx(inpl, inpo, r_embs, embs)
+        return scores_l, scores_r

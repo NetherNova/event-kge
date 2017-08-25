@@ -138,3 +138,9 @@ class TransH(object):
 
     def variables(self):
         return [self.E, self.R, self.W]
+
+    def scores(self, session, inpl, inpr, inpo):
+        r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict={})
+        scores_l = model.rank_left_idx(inpr, inpo, r_embs, embs, w_embs)
+        scores_r = model.rank_right_idx(inpl, inpo, r_embs, embs, w_embs)
+        return scores_l, scores_r
