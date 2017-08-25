@@ -278,7 +278,7 @@ class TranslationModels:
 
 
 if __name__ == '__main__':
-    for seq_data_ in [0.1, 0.25, 0.5, 0.75, 1.0]:
+    for zero_shot_prop in [0.25, 0.5, 0.75]:
         rnd = np.random.RandomState(42)
         ####### PATH PARAMETERS ########
         base_path = "../clones/"
@@ -291,8 +291,8 @@ if __name__ == '__main__':
         routing_data = False
         path_to_sequence = base_path + 'Sequences/sequence.txt'
         num_sequences = None
-        pre_train = True
-        supp_event_embeddings = base_path + "Embeddings/supplied_embeddings.pickle"
+        pre_train = False
+        supp_event_embeddings = None # base_path + "Embeddings/supplied_embeddings.pickle"
 
         preprocessor = PreProcessor(path_to_kg)
 
@@ -320,7 +320,7 @@ if __name__ == '__main__':
             max_events = None
             max_seq = None
             # sequence window size in minutes
-            window_size = 0.3
+            window_size = 0.5
             amberg_params = (path_to_events, max_events)
 
         preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params)
@@ -333,19 +333,16 @@ if __name__ == '__main__':
         print("Read {0} number of triples".format(len(g)))
         get_kg_statistics(g)
 
-        zero_shot_prop = 0.3
-        zero_shot_entity =  URIRef('http://www.siemens.com/ontology/demonstrator#Event') #URIRef('http://purl.oclc.org/NET/ssnx/ssn#Device')
-        zero_shot_relation = [URIRef(RDF.type), URIRef('http://www.siemens.com/ontology/demonstrator#occursOn')] # URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#follows') # URIRef('http://www.siemens.com/ontology/demonstrator#involvedEquipment') URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#hasPart')
-        zero_shot_triples, kg_prop = get_zero_shot_scenario(g, zero_shot_entity, zero_shot_relation, zero_shot_prop)
+        zero_shot_entity =  URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#Process') # URIRef('http://purl.oclc.org/NET/ssnx/ssn#Device') # URIRef('http://www.siemens.com/ontology/demonstrator#Event')
+        zero_shot_relation =  URIRef('http://www.siemens.com/ontology/demonstrator#involvedEquipment') # URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#follows') # URIRef('http://www.siemens.com/ontologies/amberg#connectsTo') # URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#hasPart') # URIRef(RDF.type)
+        zero_shot_triples, kg_prop = get_zero_shot_scenario(g, zero_shot_entity, [zero_shot_relation], zero_shot_prop)
         # zero_shot_triples = []
-
-        #TODO: RNN 0.1, 0.3, 0.5
 
         ######### Model selection ##########
         model_type = TranslationModels.Trans_E
         bernoulli = True
         # "Skipgram", "Concat", "RNN"
-        event_layer = 'Concat'
+        event_layer = 'Skipgram'
         store_embeddings = False
 
         ######### Hyper-Parameters #########
@@ -357,7 +354,7 @@ if __name__ == '__main__':
         param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
         param_dict['alpha'] = [1.0]     # event embedding weighting
         eval_step_size = 1000
-        num_epochs = 100
+        num_epochs = 80
         test_proportion = kg_prop
         validation_proportion = 0.1 # 0.1
         fnsim = l2_similarity
@@ -374,7 +371,7 @@ if __name__ == '__main__':
 
         # SKIP Parameters
         if event_layer is not None:
-            param_dict['num_skips'] = [1]   # [2, 4]
+            param_dict['num_skips'] = [3]   # [2, 4]
             param_dict['num_sampled'] = [7]     # [5, 9]
             # param_dict['batch_size_sg'] = [2]     # [128, 512]
             pre_train_steps = 10000
@@ -385,7 +382,6 @@ if __name__ == '__main__':
                 sequences = prepare_sequences(merged, message_index,
                                                   unique_msgs, window_size, max_seq, g_train)
             num_sequences = len(sequences)
-            sequences = sequences[:int(num_sequences * seq_data_)]
 
         num_entities = len(ent_dict)
         num_relations = len(rel_dict)
@@ -615,8 +611,8 @@ if __name__ == '__main__':
                                        encoding='utf-8')
 
         # Reset graph, load best model and apply to test data set
-        with open(base_path + 'evaluation_parameters_' + model_name + '_' + str(seq_data_) +
-                          '_best.csv', "wb") as eval_file:
+        with open(base_path + 'evaluation_parameters_' + model_name + '_' + zero_shot_entity.split('#')[1] + '_' + zero_shot_relation.split('#')[1] +
+                         '_' + str(zero_shot_prop) + '_best.csv', "wb") as eval_file:
             writer = csv.writer(eval_file)
             results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global)
             writer.writerow (

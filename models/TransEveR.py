@@ -3,7 +3,7 @@ import numpy as np
 from models.model import l2_similarity, dot, trans, ident_entity, max_margin, skipgram_loss, ranking_error_triples
 
 
-class TransH(object):
+class TransEveR(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
                  vocab_size, init_lr=1.0, skipgram=True, lambd=None, alpha=1.0):
         """
@@ -64,6 +64,24 @@ class TransH(object):
         w_bound = np.sqrt(6. / self.embedding_size)
         self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound))
+        # e = |h + r - t|
+        # cross-entropy(y, softmax(W e))
+        #
+        # TEKE h = A cooc + h
+        # r = B cooc + r --> we dont have that since there are no triples between two events!!
+
+        # SSP
+        # project loss vector e to "semantic subspace" s
+        #
+
+        # learn two representations of event vectors "from" and "to"
+        # [e1, e2, e3]
+        # a) prediction pairs (e1 -> e2), (e1 -> e3) "from the cause predict all effects" We1
+        # b) prediction pairs (e3 -> e1), (e2 -> e1) "from the effect, predict all causes" We2
+        # two-way LSTM (back and forth)
+
+
+        # combine
         self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound))
 
@@ -79,6 +97,10 @@ class TransH(object):
         self.inprn = tf.placeholder(tf.int32, [self.batch_size_kg], name="rhsn")
         self.inpln = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhsn")
         self.inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="relln")
+
+        self.test_inpr = tf.placeholder(tf.int32, [None], name="test_rhs")
+        self.test_inpl = tf.placeholder(tf.int32, [None], name="test_lhs")
+        self.test_inpo = tf.placeholder(tf.int32, [None], name="test_rell")
 
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
         rhs = tf.nn.embedding_lookup(self.E, self.inpr)

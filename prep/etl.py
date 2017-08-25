@@ -122,13 +122,12 @@ def update_amberg_ontology(ont, ent_dict, msg_dict, mod_dict, fe_dict, var_dict,
         ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module[0]]))
         if "Stau" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Event']))
         elif "Achse" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Event']))
-        elif "F?llstand" in msg:
+        elif "F?llstand" in msg or "fehlt" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Event']))
+        elif "Schutzt?re" in msg:
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Door-Event']))
         # TODO: if both entries -> occursOn Module and FE
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
         # TODO: don't need to maintain fe_or_module_id? is updated anyway

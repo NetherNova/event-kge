@@ -29,16 +29,9 @@ class TEKE(object):
         self.init_lr = init_lr
         self.alpha = alpha
 
-    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, A, B, n_h, n_t, ht):
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, A, n_h, n_t):
         # every unique combination of inpr inpo
-        outer_dict = dict()
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
-
-        for i, o, r in enumerate(zip(test_inpo, test_inpr)):
-            if o in outer_dict:
-                outer_dict[o][r].append(i)
-            else:
-                outer_dict[o] = dict()
 
         lhs = n_h.dot(A) + ent_embs
         unique_inpo = np.unique(test_inpo)
@@ -52,7 +45,7 @@ class TEKE(object):
             results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
         return results
 
-    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, A, B, n_h, n_t, ht):
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, A, n_h, n_t):
         rhs = n_t.dot(A) + ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
@@ -76,16 +69,12 @@ class TEKE(object):
 
         self.A = tf.Variable(tf.random_uniform((self.embedding_size, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound), name="A")
-        self.B = tf.Variable(tf.random_uniform((self.embedding_size, self.embedding_size), minval=-w_bound,
-                                               maxval=w_bound), name="B")
 
         self.n_x_h = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
         self.n_x_t = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
-        self.n_x_y = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
 
         self.n_x_hn = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
         self.n_x_tn = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
-        self.n_x_yn = tf.placeholder(tf.float32, [self.batch_size_kg, self.embedding_size])
 
         self.normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
         self.normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
@@ -98,10 +87,6 @@ class TEKE(object):
         self.inpln = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhsn")
         self.inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="relln")
 
-        self.test_inpr = tf.placeholder(tf.int32, [None], name="test_rhs")
-        self.test_inpl = tf.placeholder(tf.int32, [None], name="test_lhs")
-        self.test_inpo = tf.placeholder(tf.int32, [None], name="test_rell")
-
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
         rhs = tf.nn.embedding_lookup(self.E, self.inpr)
         rell = tf.nn.embedding_lookup(self.R, self.inpo)
@@ -112,11 +97,11 @@ class TEKE(object):
 
         lhs = tf.matmul(self.n_x_h, self.A) + lhs
         rhs = tf.matmul(self.n_x_t, self.A) + rhs
-        rell = tf.matmul(self.n_x_y, self.B) + rell
+        # rell = tf.matmul(self.n_x_y, self.B) + rell
 
         lhsn = tf.matmul(self.n_x_hn, self.A) + lhsn
         rhsn = tf.matmul(self.n_x_tn, self.A) + rhsn
-        relln = tf.matmul(self.n_x_yn, self.B) + relln
+        # relln = tf.matmul(self.n_x_yn, self.B) + relln
 
         # dummy not used
         self.train_inputs = tf.placeholder(tf.int32, shape=[None])
@@ -132,6 +117,12 @@ class TEKE(object):
             simin = self.fnsim(self.leftop(lhsn, relln), self.rightop(rhsn, relln), broadcast=False)
 
         kg_loss = max_margin(simi, simin)
+
+        self.reg1 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(self.n_x_h, self.A)**2, axis=1)) - 1))
+        self.reg2 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(self.n_x_t, self.A) ** 2, axis=1)) - 1))
+        #reg2_z = dot(self.W, self.R) ** 2
+        #reg2_n = tf.expand_dims(tf.sqrt(tf.reduce_sum(self.R ** 2, axis=1)), 1)
+        #reg2 = tf.reduce_sum(tf.maximum(0., (reg2_z / reg2_n) - epsilon))
 
         self.loss = kg_loss
 
@@ -151,4 +142,4 @@ class TEKE(object):
         return [self.optimizer, self.loss]
 
     def variables(self):
-        return [self.E, self.R, self.A, self.B]
+        return [self.E, self.R, self.A]

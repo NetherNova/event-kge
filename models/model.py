@@ -355,13 +355,7 @@ def concat_window_loss(vocab_size, num_sampled, embed, embedding_size, train_lab
     :param sequence_id:
     :return:
     """
-    # TODO: sequence number as paragraph id?
-    # W_seq = tf.Variable(tf.truncated_normal([num_sequences, embedding_size]))
-
-    # sequence_ids, train_labels = tf.split(train_labels, 2, axis=1)     # TODO: extract first index as sequence index
-
-    #sequence_vectors = tf.squeeze(tf.nn.embedding_lookup(W_seq, sequence_ids), axis=1)
-
+    # concatenate everything in *embed*
     embed_context = tf.reshape(embed, [embed.get_shape()[0].value, embed.get_shape()[1].value * embedding_size])
 
     #embed_context = tf.concat_v2([embed_context, sequence_vectors], axis=1)
@@ -391,7 +385,7 @@ def ranking_error_triples(filter_triples, scores_l, scores_r, left_ind, o_ind, r
             zip(left_ind, o_ind, right_ind)):
         # find those triples that have <*,o,r> and * != l
         rmv_idx_l = [l_rmv for (l_rmv, rel, rhs) in filter_triples if
-                     rel == o and r == rel and l_rmv != l]
+                     rel == o and r == rhs and l_rmv != l]
         # *l* is the correct index
         scores_l[i, rmv_idx_l] = -np.inf
         errl += [np.argsort(np.argsort(-scores_l[i, :]))[l] + 1]

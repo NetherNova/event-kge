@@ -39,6 +39,46 @@ class SkipgramBatchGenerator(object):
         return batch_x, batch_y
 
 
+class FuturePredictiveBatchGenerator(object):
+    def __init__(self, sequences, num_skips, rnd):
+        """
+        center word is target, context should predict center word
+        :param sequences: list of lists of event entities
+        :param num_skips:  window left and right of target
+        :param batch_size:
+        """
+        self.sequences = sequences
+        self.sequence_index = 0
+        self.num_skips = num_skips
+        self.event_index = num_skips
+        self.rnd = rnd
+        self.prepare_target_skips()
+
+    def prepare_target_skips(self):
+        self.data_index = 0
+        self.data = []
+        for seq in self.sequences:
+            for target_ind in range(self.num_skips, len(seq) - self.num_skips):
+                target_context = []
+                for i in range(-self.num_skips, self.num_skips+1):
+                    if i == 0:
+                        # avoid the target_ind itself
+                        continue
+                    target_context.append(seq[target_ind + i])
+                self.data.append( (target_context, seq[target_ind]) )
+        self.rnd.shuffle(self.data)
+
+    def next(self, batch_size):
+        batch_x = []
+        batch_y = []
+        for b in range(batch_size):
+            self.data_index = self.data_index % len(self.data)
+            batch_x.append(self.data[self.data_index][0])
+            batch_y.append(self.data[self.data_index][1])
+            self.data_index += 1
+        return batch_x, batch_y
+
+
 class PredictiveEventBatchGenerator(object):
     def __init__(self, sequences, num_skips, rnd):
         """
@@ -63,7 +103,7 @@ class PredictiveEventBatchGenerator(object):
                 tmp_list = []
                 for i in range(-self.num_skips, 0):
                     tmp_list.append(seq[target_ind + i])
-                    self.data.append( (tmp_list, seq[target_ind]) )
+                self.data.append( (tmp_list, seq[target_ind]) )
         self.rnd.shuffle(self.data)
 
     def next(self, batch_size):

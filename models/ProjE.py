@@ -3,7 +3,7 @@ import numpy as np
 from models.model import dot_similarity, dot, max_margin, skipgram_loss, cnn_loss, concat_window_loss, rnn_loss, trans, ident_entity
 
 
-class TransE(object):
+class ProjE(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
                  vocab_size, fnsim, init_lr=1.0, event_layer="Skipgram", num_events=None, alpha=1.0):
         """
@@ -34,7 +34,7 @@ class TransE(object):
         self.num_events = num_events
         self.alpha = alpha
 
-    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs):
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, Dr, De, bc, bp):
         lhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
@@ -47,7 +47,7 @@ class TransE(object):
             results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
         return results
 
-    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs):
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, Dr, De, bc, bp):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
@@ -66,8 +66,21 @@ class TransE(object):
         w_bound = np.sqrt(6. / self.embedding_size)
         self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound), name="E")
+
+        self.bias_p = tf.Variable(tf.random_uniform(self.num_entities), minval=-w_bound,
+                                               maxval=w_bound), name="bp")
+
         self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound), name="R")
+
+        self.Dr = tf.Variable(tf.random_uniform(self.embedding_size), minval=-w_bound,
+                                               maxval=w_bound), name="Dr")
+
+        self.De = tf.Variable(tf.random_uniform(self.embedding_size), minval=-w_bound,
+                                               maxval=w_bound), name="De")
+
+        self.bias_c = tf.Variable(tf.random_uniform(self.embedding_size), minval=-w_bound,
+                                               maxval=w_bound), name="bc")
 
         self.normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
 
@@ -80,26 +93,43 @@ class TransE(object):
         self.inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="relln")
 
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
-        rhs = tf.nn.embedding_lookup(self.E, self.inpr)
+        #rhs = tf.nn.embedding_lookup(self.E, self.inpr)
         rell = tf.nn.embedding_lookup(self.R, self.inpo)
         #relr = tf.nn.embedding_lookup(self.R, self.inpo)
 
-        lhsn = tf.nn.embedding_lookup(self.E, self.inpln)
-        rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
-        relln = tf.nn.embedding_lookup(self.R, self.inpon)
+        #lhsn = tf.nn.embedding_lookup(self.E, self.inpln)
+        #rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
+        #relln = tf.nn.embedding_lookup(self.R, self.inpon)
 
-        if self.fnsim == dot_similarity:
-            simi = tf.diag_part(self.fnsim(self.leftop(lhs, rell), tf.transpose(self.rightop(rhs, rell)),
-                                           broadcast=False))
-            simin = tf.diag_part(self.fnsim(self.leftop(lhsn, rell), tf.transpose(self.rightop(rhsn, rell)),
-                                            broadcast=False))
-        else:
-            simi = self.fnsim(self.leftop(lhs, rell), self.rightop(rhs, rell), broadcast=False)
-            simin = self.fnsim(self.leftop(lhsn, relln), self.rightop(rhsn, relln), broadcast=False)
+        # predict lhs + rell
 
-        kg_loss = max_margin(simi, simin)
+        h_e_r = tf.tanh(tf.mul(lhs, self.De) + tf.mul(rell, self.Dr) + self.bias_c)
 
-        self.loss = kg_loss
+        kg_loss1 = tf.reduce_mean(
+                            tf.nn.nce_loss(
+                            weights=self.E,
+                           biases=self.bias_p,
+                           labels=self.inpr,
+                           inputs=h_e_r,
+                           num_sampled= int(self.num_entities * 0.25),
+                           num_classes=self.num_entities,
+                           remove_accidental_hits=True))
+
+        # predict rhs + rell
+
+        h_e_r2 = h_e_r = tf.tanh(tf.mul(lhs, self.De) + tf.mul(rell, self.Dr) + self.bias_c)
+
+        kg_loss2 = tf.reduce_mean(
+            tf.nn.nce_loss(
+                weights=self.E,
+                biases=self.bias_p,
+                labels=self.inpl,
+                inputs=h_e_r2,
+                num_sampled=int(self.num_entities * 0.25),
+                num_classes=self.num_entities,
+                remove_accidental_hits=True))
+
+        self.loss = kg_loss1 + kg_loss2
 
         if self.event_layer == "Skipgram":
             # Skipgram Model

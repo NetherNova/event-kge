@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from models.model import dot, trans, ident_entity, max_margin, rank_right_fn_idx, rank_left_fn_idx, skipgram_loss, \
+from models.model import dot, trans, ident_entity, max_margin, skipgram_loss, \
     rescal_similarity, lstm_loss, concat_window_loss
 from scipy.special import expit
 
@@ -72,10 +72,6 @@ class RESCAL(object):
         self.inpln = tf.placeholder(tf.int32, [self.batch_size_kg], name="lhsn")
         self.inpon = tf.placeholder(tf.int32, [self.batch_size_kg], name="relln")
 
-        self.test_inpr = tf.placeholder(tf.int32, [None], name="test_rhs")
-        self.test_inpl = tf.placeholder(tf.int32, [None], name="test_lhs")
-        self.test_inpo = tf.placeholder(tf.int32, [None], name="test_rell")
-
         lhs = tf.nn.embedding_lookup(self.E, self.inpl)
         rhs = tf.nn.embedding_lookup(self.E, self.inpr)
         rell = tf.nn.embedding_lookup(self.R, self.inpo)
@@ -130,11 +126,6 @@ class RESCAL(object):
         learning_rate = tf.constant(starter_learning_rate)
 
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
-
-        #self.ranking_error_l = rank_left_fn_idx(rescal_similarity, self.E, self.R, trans, ident_entity, self.test_inpr,
-        #                                        self.test_inpo)
-        #self.ranking_error_r = rank_right_fn_idx(rescal_similarity, self.E, self.R, trans, ident_entity, self.test_inpl,
-        #                                         self.test_inpo)
 
     def assign_initial(self, init_embeddings):
         return self.E.assign(init_embeddings)

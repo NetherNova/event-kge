@@ -37,7 +37,7 @@ from models.TransH import TransH
 from models.model import ranking_error_triples
 from models.model import l2_similarity
 from models.pre_training import EmbeddingPreTrainer, TEKEPreparation
-from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator
+from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator, FuturePredictiveBatchGenerator
 from prep.etl import embs_to_df, prepare_sequences, message_index
 from prep.preprocessing import PreProcessor
 
@@ -165,7 +165,7 @@ def bernoulli_probs(ontology, relation_dictionary):
     return probs
 
 
-def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path):
+def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path, tk=None):
     tf.reset_default_graph()
     with tf.Session() as session:
         # Need to instantiate model again
@@ -176,6 +176,8 @@ def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path):
             model = TransH(*parameter_list)
         elif model_type == TranslationModels.RESCAL:
             model = RESCAL(*parameter_list)
+        elif model_type == TranslationModels.TEKE:
+            model = TEKE(*parameter_list)
 
         model.create_graph()
         saver = tf.train.Saver(model.variables())
@@ -190,6 +192,16 @@ def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path):
             r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict=feed_dict)
             scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs, w_embs)
             scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs, w_embs)
+        elif model_type == TranslationModels.TEKE:
+            n_h_test = tk.get_pointwise(test_inpl)
+            entities_all = tk.get_pointwise()
+            n_t_test = tk.get_pointwise(test_inpr)
+            ht_test_all = None
+            ht_all_test = None
+
+            r_embs, embs, A = session.run([model.R, model.E, model.A], feed_dict={})
+            scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs, A, entities_all, n_t_test)
+            scores_r = model.rank_right_idx(test_inpl, test_inpo, r_embs, embs, A, n_h_test, entities_all)
         else:
             r_embs, embs = session.run([model.R, model.E], feed_dict={})
             scores_l = model.rank_left_idx(test_inpr, test_inpo, r_embs, embs)
@@ -288,10 +300,12 @@ if __name__ == '__main__':
     routing_data = False
     path_to_sequence = base_path + 'Sequences/sequence.txt'
     num_sequences = None
-    pre_train = True
-    supp_event_embeddings = base_path + "Embeddings/supplied_embeddings.pickle"
+    pre_train = False
+    supp_event_embeddings = None # base_path + "Embeddings/supplied_embeddings.pickle"
 
     preprocessor = PreProcessor(path_to_kg)
+
+    tk = None
 
     if routing_data:
         exclude_rels = ['http://www.siemens.com/knowledge_graph/ppr#resourceName',
@@ -314,7 +328,7 @@ if __name__ == '__main__':
         amberg_params = None
     else:
         exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
-        max_events = None
+        max_events = 1000
         max_seq = None
         # sequence window size in minutes
         window_size = 0.5
@@ -330,7 +344,7 @@ if __name__ == '__main__':
     print("Read {0} number of triples".format(len(g)))
     get_kg_statistics(g)
 
-    #zero_shot_prop = 0.75
+    #zero_shot_prop = 0.25
     #zero_shot_entity =  URIRef('http://www.siemens.com/ontology/demonstrator#Event') #URIRef('http://purl.oclc.org/NET/ssnx/ssn#Device')
     #zero_shot_relation = URIRef(RDF.type) # URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#follows') # URIRef('http://www.siemens.com/ontology/demonstrator#involvedEquipment') URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#hasPart')
     #zero_shot_triples, kg_prop = get_zero_shot_scenario(g, zero_shot_entity, zero_shot_relation, zero_shot_prop)
@@ -340,15 +354,15 @@ if __name__ == '__main__':
     model_type = TranslationModels.Trans_E
     bernoulli = True
     # "Skipgram", "Concat", "RNN"
-    event_layer = None
+    event_layer = 'Concat'
     store_embeddings = False
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [100]
+    param_dict['embedding_size'] = [10]
     param_dict['seq_data_size'] = [1.0]
     param_dict['batch_size'] = [32]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.05]     # [0.5, 0.8, 1.0]
+    param_dict['learning_rate'] = [0.3]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
     param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
@@ -369,7 +383,7 @@ if __name__ == '__main__':
 
     # SKIP Parameters
     if event_layer is not None:
-        param_dict['num_skips'] = [4]   # [2, 4]
+        param_dict['num_skips'] = [2]   # [2, 4]
         param_dict['num_sampled'] = [7]     # [5, 9]
         # param_dict['batch_size_sg'] = [2]     # [128, 512]
         pre_train_steps = 10000
@@ -396,7 +410,7 @@ if __name__ == '__main__':
     overall_best_performance = np.inf
     best_param_list = []
 
-    train_tg = TripleBatchGenerator(g_train, ent_dict, rel_dict, 2, rnd, bern_probs=bern_probs)
+    train_tg = TripleBatchGenerator(g_train, ent_dict, rel_dict, 1, rnd, bern_probs=bern_probs)
     valid_tg = TripleBatchGenerator(g_valid, ent_dict, rel_dict, 1, rnd, sample_negative=False)
     test_tg = TripleBatchGenerator(g_test, ent_dict, rel_dict, 1, rnd, sample_negative=False)
 
@@ -457,7 +471,7 @@ if __name__ == '__main__':
             pre_trainer = EmbeddingPreTrainer(unique_msgs, SkipgramBatchGenerator(sequences, num_skips, rnd),
                                               params.embedding_size, vocab_size, num_sampled, batch_size_sg,
                                               supp_event_embeddings)
-            pre_trainer.train(5000)
+            pre_trainer.train(10000)
             pre_trainer.save()
             w_bound = np.sqrt(6. / params.embedding_size)
             initE = rnd.uniform(-w_bound, w_bound, (num_entities, params.embedding_size))
@@ -520,8 +534,8 @@ if __name__ == '__main__':
                         model.inpl: batch_pos[1, :], model.inpr: batch_pos[0, :], model.inpo: batch_pos[2, :],
                         model.inpln: batch_neg[1, :], model.inprn: batch_neg[0, :], model.inpon: batch_neg[2, :],
                         model.train_inputs: batch_x, model.train_labels: batch_y,
-                        model.n_x_h : n_x_h, model.n_x_t : n_x_t, model.n_x_y : xy,
-                        model.n_x_hn: n_x_hn, model.n_x_tn: n_x_tn, model.n_x_yn: xy_n,
+                        model.n_x_h : n_x_h, model.n_x_t : n_x_t,
+                        model.n_x_hn: n_x_hn, model.n_x_tn: n_x_tn,
                         model.global_step: b
                     }
                 else:
@@ -534,6 +548,7 @@ if __name__ == '__main__':
                     }
                 # One train step in mini-batch
                 _, l = session.run(model.train(), feed_dict=feed_dict)
+
                 average_loss += l
                 # Run post-ops: regularization etc.
                 session.run(model.post_ops())
@@ -553,9 +568,9 @@ if __name__ == '__main__':
                         ht_test_all = None
                         ht_all_test = None
 
-                        r_embs, embs, A, B = session.run([model.R, model.E, model.A, model.B], feed_dict={})
-                        scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs, A, B, entities_all, n_t_test, ht_all_test)
-                        scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs, A, B, n_h_test, entities_all, ht_test_all)
+                        r_embs, embs, A = session.run([model.R, model.E, model.A], feed_dict={})
+                        scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs, A, entities_all, n_t_test)
+                        scores_r = model.rank_right_idx(valid_inpl, valid_inpo, r_embs, embs, A, n_h_test, entities_all)
                     else:
                         r_embs, embs = session.run([model.R, model.E], feed_dict={})
                         scores_l = model.rank_left_idx(valid_inpr, valid_inpo, r_embs, embs)
@@ -612,7 +627,10 @@ if __name__ == '__main__':
     with open(base_path + 'evaluation_parameters_' + model_name +
                       '_best.csv', "wb") as eval_file:
         writer = csv.writer(eval_file)
-        results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global)
+        if tk is not None:
+            results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global, tk)
+        else:
+            results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global)
         writer.writerow (
                 ["relation", "embedding_size", "batch_size", "learning_rate", "num_skips", "num_sampled",
                  "batch_size_sg", "mean_rank", "mrr", "hits_top_10", "hits_top_3", "hits_top_1"]
