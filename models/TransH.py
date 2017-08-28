@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from models.model import l2_similarity, dot, trans, ident_entity, max_margin, skipgram_loss, ranking_error_triples
+from event_models.Skipgram import Skipgram
 
 
 class TransH(object):
@@ -90,6 +91,23 @@ class TransH(object):
         relln = tf.nn.embedding_lookup(self.R, self.inpon)
         wrn = tf.nn.embedding_lookup(self.W, self.inpon)
 
+        if self.event_layer is not None:
+            self.event_layer.create_graph()
+            if not self.event_layer.shared:
+                self.a = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
+                                                   maxval=w_bound), name="a")
+                self.b = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
+                                                       maxval=w_bound), name="b")
+                lhs = tf.multiply(self.a, lhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                            self.inpl))
+                rhs = tf.multiply(self.a, rhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                            self.inpr))
+
+                lhsn = tf.multiply(self.a, lhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                              self.inpln))
+                rhsn = tf.multiply(self.a, rhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                              self.inprn))
+
         lhs_proj = lhs - dot(lhs, wr) * wr  # dot and elementwise mul => projection
         rhs_proj = rhs - dot(rhs, wr) * wr
 
@@ -108,24 +126,28 @@ class TransH(object):
 
         kg_loss = max_margin(simi, simin) + self.lambd * (reg1 + reg2)
 
-        # Skipgram Model
-        self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
-        self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-
-        sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-
-        if self.skipgram:
-            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size, self.train_labels)
-            self.loss = kg_loss + self.alpha * sg_loss
+        if self.event_layer is not None:
+            if type(self.event_layer) == Skipgram:
+                self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            else:
+                self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, None])
+            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+            if not self.event_layer.shared:
+                self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
+                                                                            self.train_inputs, embeddings=None)
+            else:
+                self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
+                                                                            self.train_inputs, embeddings=self.E)
         else:
-            self.loss = kg_loss
+            # Dummy Inputs
+            self.train_inputs = tf.placeholder(tf.int32, shape=[None])
+            self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
+
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
         learning_rate = tf.constant(starter_learning_rate)
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
-        self.ranking_test_inpo = tf.nn.embedding_lookup(self.R, self.test_inpo)
-        self.ranking_test_inpw = tf.nn.embedding_lookup(self.W, self.test_inpo)
 
     def assign_initial(self, init_embeddings):
         return self.E.assign(init_embeddings)
@@ -137,10 +159,18 @@ class TransH(object):
         return [self.optimizer, self.loss]
 
     def variables(self):
-        return [self.E, self.R, self.W]
+        vars = [self.E, self.R, self.W]
+        if self.event_layer is not None:
+            vars += self.event_layer.variables()
+            if not self.event_layer.shared:
+                vars += [self.a, self.b]
+        return vars
 
     def scores(self, session, inpl, inpr, inpo):
-        r_embs, embs, w_embs = session.run([model.R, model.E, model.W], feed_dict={})
-        scores_l = model.rank_left_idx(inpr, inpo, r_embs, embs, w_embs)
-        scores_r = model.rank_right_idx(inpl, inpo, r_embs, embs, w_embs)
+        r_embs, embs, w_embs = session.run([self.R, self.E, self.W], feed_dict={})
+        if self.event_layer is not None and not self.event_layer.shared:
+            a, b, v_embs = session.run([self.a, self.b, self.event_layer.V], feed_dict={})
+            embs = np.multiply(embs, a) + np.multiply(v_embs, b)
+        scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs, w_embs)
+        scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs, w_embs)
         return scores_l, scores_r

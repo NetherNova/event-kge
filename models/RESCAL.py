@@ -1,13 +1,13 @@
 import tensorflow as tf
 import numpy as np
-from models.model import dot, trans, ident_entity, max_margin, skipgram_loss, \
-    rescal_similarity, lstm_loss, concat_window_loss
+from models.model import max_margin
 from scipy.special import expit
+from event_models.Skipgram import Skipgram
 
 
 class RESCAL(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, init_lr=1.0, event_layer="Skipgram", lambd=None, num_events=None, alpha=1.0):
+                 vocab_size, init_lr=1.0, event_layer=None, lambd=None):
         """
         RESCAL with max-margin loss (not Alternating least-squares)
         :param num_entities:
@@ -28,10 +28,8 @@ class RESCAL(object):
         self.init_lr = init_lr
         self.lambd = lambd
         self.event_layer = event_layer
-        self.num_events = num_events
-        self.alpha = alpha
 
-    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, cache=True):
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs):
         lhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
@@ -43,7 +41,7 @@ class RESCAL(object):
             results[rhs_inds] = expit(rhs[rhs_inds].dot(unique_lhs_tmp.transpose()))
         return results
 
-    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, cache=True):
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
         unique_rell = r_embs[unique_inpo]
@@ -87,38 +85,46 @@ class RESCAL(object):
         lhsn = tf.expand_dims(lhsn, 1)
         lhsn = tf.reduce_sum(tf.multiply(lhsn, relln), 2)
 
+        if self.event_layer is not None:
+            self.event_layer.create_graph()
+            if not self.event_layer.shared:
+                self.a = tf.Variable(tf.random_uniform([self.embedding_size], minval=-self.w_bound,
+                                                   maxval=self.w_bound), name="a")
+                self.b = tf.Variable(tf.random_uniform([self.embedding_size], minval=-self.w_bound,
+                                                       maxval=self.w_bound), name="b")
+                lhs = tf.multiply(self.a, lhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                            self.inpl))
+                rhs = tf.multiply(self.a, rhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                            self.inpr))
+
+                lhsn = tf.multiply(self.a, lhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                              self.inpln))
+                rhsn = tf.multiply(self.a, rhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                              self.inprn))
+
         simi = tf.nn.sigmoid(tf.reduce_sum(tf.multiply(lhs, rhs), 1)) # [batch, d] * [batch, d]
         simin = tf.nn.sigmoid(tf.reduce_sum(tf.multiply(lhsn, rhsn), 1))
+
         kg_loss = max_margin(simi, simin) + self.lambd * (tf.nn.l2_loss(self.E) + tf.nn.l2_loss(self.R))
 
         self.loss = kg_loss
 
-        if self.event_layer == "Skipgram":
-            # Skipgram Model
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+        if self.event_layer is not None:
+            if type(self.event_layer) == Skipgram:
+                self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            else:
+                self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, None])
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-            sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
-                                    self.train_labels)
-            self.loss += self.alpha * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
-        elif self.event_layer == "LSTM":
-            self.train_inputs = tf.placeholder(tf.int32,
-                                               shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
-            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            concat_loss = lstm_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
-            self.loss += self.alpha  * concat_loss
-        elif self.event_layer == "Concat":
-            self.train_inputs = tf.placeholder(tf.int32,
-                                               shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
-            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 2])
-            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,
-                                             self.train_labels)
-            self.loss += self.alpha  * concat_loss
+            if not self.event_layer.shared:
+                self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
+                                                                            self.train_inputs, embeddings=None)
+            else:
+                self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
+                                                                            self.train_inputs, embeddings=self.E)
         else:
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
-            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
+            # Dummy Inputs
+            self.train_inputs = tf.placeholder(tf.int32, shape=[None])
+            self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
 
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
@@ -137,4 +143,19 @@ class RESCAL(object):
         return [self.optimizer, self.loss]
 
     def variables(self):
-        return [self.E, self.R]
+        vars = [self.E, self.R]
+        if self.event_layer is not None:
+            vars += self.event_layer.variables()
+            if not self.event_layer.shared:
+                vars += vars + [self.a, self.b]
+        return vars
+
+    def scores(self, session, inpl, inpr, inpo):
+        # need to get embeddings out of tf into python numpy
+        r_embs, embs = session.run([self.R, self.E], feed_dict={})
+        if self.event_layer is not None and not self.event_layer.shared:
+            a, b, v_embs = session.run([self.a, self.b, self.event_layer.V], feed_dict={})
+            embs = np.multiply(embs, a) + np.multiply(v_embs, b)
+        scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs)
+        scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs)
+        return scores_l, scores_r

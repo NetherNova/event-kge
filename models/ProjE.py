@@ -64,22 +64,22 @@ class ProjE(object):
         print('Building Model')
         # Translation Model initialisation
         w_bound = np.sqrt(6. / self.embedding_size)
-        self.E = tf.Variable(tf.random_uniform((self.num_entities, self.embedding_size), minval=-w_bound,
+        self.E = tf.Variable(tf.random_uniform([self.num_entities, self.embedding_size], minval=-w_bound,
                                                maxval=w_bound), name="E")
 
-        self.bias_p = tf.Variable(tf.random_uniform(self.num_entities), minval=-w_bound,
+        self.bias_p = tf.Variable(tf.random_uniform(self.num_entities, minval=-w_bound,
                                                maxval=w_bound), name="bp")
 
-        self.R = tf.Variable(tf.random_uniform((self.num_relations, self.embedding_size), minval=-w_bound,
+        self.R = tf.Variable(tf.random_uniform([self.num_relations, self.embedding_size], minval=-w_bound,
                                                maxval=w_bound), name="R")
 
-        self.Dr = tf.Variable(tf.random_uniform(self.embedding_size), minval=-w_bound,
+        self.Dr = tf.Variable(tf.random_uniform(self.embedding_size, minval=-w_bound,
                                                maxval=w_bound), name="Dr")
 
-        self.De = tf.Variable(tf.random_uniform(self.embedding_size), minval=-w_bound,
+        self.De = tf.Variable(tf.random_uniform(self.embedding_size, minval=-w_bound,
                                                maxval=w_bound), name="De")
 
-        self.bias_c = tf.Variable(tf.random_uniform(self.embedding_size), minval=-w_bound,
+        self.bias_c = tf.Variable(tf.random_uniform(self.embedding_size, minval=-w_bound,
                                                maxval=w_bound), name="bc")
 
         self.normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
@@ -97,13 +97,7 @@ class ProjE(object):
         rell = tf.nn.embedding_lookup(self.R, self.inpo)
         #relr = tf.nn.embedding_lookup(self.R, self.inpo)
 
-        #lhsn = tf.nn.embedding_lookup(self.E, self.inpln)
-        #rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
-        #relln = tf.nn.embedding_lookup(self.R, self.inpon)
-
-        # predict lhs + rell
-
-        h_e_r = tf.tanh(tf.mul(lhs, self.De) + tf.mul(rell, self.Dr) + self.bias_c)
+        h_e_r = tf.tanh(tf.multiply(lhs, self.De) + tf.multiply(rell, self.Dr) + self.bias_c)
 
         kg_loss1 = tf.reduce_mean(
                             tf.nn.nce_loss(

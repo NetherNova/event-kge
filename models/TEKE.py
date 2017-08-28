@@ -148,7 +148,7 @@ class TEKE(object):
         entities_all = self.tk.get_pointwise()
         n_t_test = self.tk.get_pointwise(inpr)
 
-        r_embs, embs, A = session.run([model.R, model.E, model.A], feed_dict={})
-        scores_l = model.rank_left_idx(inpr, inpo, r_embs, embs, A, entities_all, n_t_test)
-        scores_r = model.rank_right_idx(inpl, inpo, r_embs, embs, A, n_h_test, entities_all)
+        r_embs, embs, A = session.run([self.R, self.E, self.A], feed_dict={})
+        scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs, A, entities_all, n_t_test)
+        scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs, A, n_h_test, entities_all)
         return scores_l, scores_r

@@ -128,9 +128,11 @@ def update_amberg_ontology(ont, ent_dict, msg_dict, mod_dict, fe_dict, var_dict,
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
         elif "Schutzt?re" in msg:
             ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Door-Event']))
-        # TODO: if both entries -> occursOn Module and FE
+        elif 'Variantenwechsel' in msg:
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Changeover-Event']))
+        elif 'Staubsauger' in msg:
+            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Cleaning-Event']))
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
-        # TODO: don't need to maintain fe_or_module_id? is updated anyway
         ent_dict[str(amberg_ns['Event-'+str(id)])] = id
         ent_dict[str(amberg_ns[fe_or_module])] = fe_or_module_id
 
@@ -271,8 +273,6 @@ def prepare_sequences(data_frame, index, unique_dict, window_size, max_seq, g_tr
     print(result[:10])
     print("Zero shot events: ", len(zero_shot_dict))
     print("Non zero shot events: ", len(non_zero_dict))
-    #reverse_lookup = dict(zip(unique_dict.values(), unique_dict.keys()))
-    #pickle.dump(reverse_lookup, open(path_to_file + "_dictionary.pickle", "wb"))
     print("Processed {0} sequences: ".format(len(result)))
     print("Overall length of sequence: ", overall_length)
     return result

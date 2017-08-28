@@ -1,11 +1,12 @@
 import tensorflow as tf
 import numpy as np
 from models.model import dot_similarity, dot, max_margin, skipgram_loss, cnn_loss, concat_window_loss, rnn_loss, trans, ident_entity
+from event_models.Skipgram import Skipgram
 
 
 class TransE(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, fnsim, init_lr=1.0, event_layer="Skipgram", num_events=None, alpha=1.0):
+                 vocab_size, fnsim, init_lr=1.0, event_layer=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransE)
         :param num_entities:
@@ -31,8 +32,6 @@ class TransE(object):
         self.fnsim = fnsim
         self.init_lr = init_lr
         self.event_layer = event_layer
-        self.num_events = num_events
-        self.alpha = alpha
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs):
         lhs = ent_embs
@@ -87,6 +86,23 @@ class TransE(object):
         rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
         relln = tf.nn.embedding_lookup(self.R, self.inpon)
 
+        if self.event_layer is not None:
+            self.event_layer.create_graph()
+            if not self.event_layer.shared:
+                self.a = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
+                                                   maxval=w_bound), name="a")
+                self.b = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
+                                                       maxval=w_bound), name="b")
+                lhs = tf.multiply(self.a, lhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                            self.inpl))
+                rhs = tf.multiply(self.a, rhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                            self.inpr))
+
+                lhsn = tf.multiply(self.a, lhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                              self.inpln))
+                rhsn = tf.multiply(self.a, rhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                              self.inprn))
+
         if self.fnsim == dot_similarity:
             simi = tf.diag_part(self.fnsim(self.leftop(lhs, rell), tf.transpose(self.rightop(rhs, rell)),
                                            broadcast=False))
@@ -97,38 +113,22 @@ class TransE(object):
             simin = self.fnsim(self.leftop(lhsn, relln), self.rightop(rhsn, relln), broadcast=False)
 
         kg_loss = max_margin(simi, simin)
-
         self.loss = kg_loss
 
-        if self.event_layer == "Skipgram":
-            # Skipgram Model
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+        if self.event_layer is not None:
+            if type(self.event_layer) == Skipgram:
+                self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
+            else:
+                self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, None])
             self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-            sg_embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            sg_loss = skipgram_loss(self.vocab_size, self.num_sampled, sg_embed, self.embedding_size,
-                                    self.train_labels)
-            self.loss += self.alpha * sg_loss  # max-margin loss + sigmoid_cross_entropy_loss for sampled values
-        elif self.event_layer == "CNN":
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events]) # TODO: skip window size
-            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            concat_loss = cnn_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
-            self.loss += self.alpha * concat_loss
-        elif self.event_layer == "RNN":
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events]) # TODO: skip window size
-            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            concat_loss = rnn_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size, self.train_labels)
-            self.loss += self.alpha * concat_loss
-        elif self.event_layer == "Concat":
-            self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg, self.num_events])  # TODO: skip window size
-            self.train_labels = tf.placeholder(tf.int32, shape=[self.batch_size_sg, 1])
-            embed = tf.nn.embedding_lookup(self.E, self.train_inputs)
-            concat_loss = concat_window_loss(self.vocab_size, self.num_sampled, embed, self.embedding_size,
-                                             self.train_labels)
-            self.loss += self.alpha * concat_loss
+            if not self.event_layer.shared:
+                self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
+                                                                            self.train_inputs, embeddings=None)
+            else:
+                self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
+                                                                            self.train_inputs, embeddings=self.E)
         else:
-            # dummy inputs
+            # Dummy Inputs
             self.train_inputs = tf.placeholder(tf.int32, shape=[None])
             self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
 
@@ -139,7 +139,10 @@ class TransE(object):
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
     def assign_initial(self, init_embeddings):
-        return self.E.assign(init_embeddings)
+        if self.event_layer and self.event_layer.shared:
+            return self.event_layer.V.assign(init_embeddings)
+        else:
+            return self.E.assign(init_embeddings)
 
     def post_ops(self):
         return [self.normalize_E]
@@ -148,11 +151,19 @@ class TransE(object):
         return [self.optimizer, self.loss]
 
     def variables(self):
-        return [self.E, self.R]
+        vars = [self.E, self.R]
+        if self.event_layer is not None:
+            vars += self.event_layer.variables()
+            if not self.event_layer.shared:
+                vars += [self.a, self.b]
+        return vars
 
     def scores(self, session, inpl, inpr, inpo):
         # need to get embeddings out of tf into python numpy
         r_embs, embs = session.run([self.R, self.E], feed_dict={})
-        scores_l = model.rank_left_idx(inpr, inpo, r_embs, embs)
-        scores_r = model.rank_right_idx(inpl, inpo, r_embs, embs)
+        if self.event_layer is not None and not self.event_layer.shared:
+            a, b, v_embs = session.run([self.a, self.b, self.event_layer.V], feed_dict={})
+            embs = np.multiply(embs, a) + np.multiply(v_embs, b)
+        scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs)
+        scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs)
         return scores_l, scores_r
