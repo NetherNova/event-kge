@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from models.model import dot_similarity, dot, max_margin, skipgram_loss, cnn_loss, concat_window_loss, rnn_loss, trans, ident_entity
-from event_models.Skipgram import Skipgram
+from event_models.LinearEventModel import Skipgram
 
 
 class TransE(object):
@@ -102,6 +102,8 @@ class TransE(object):
                                                                                               self.inpln))
                 rhsn = tf.multiply(self.a, rhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
                                                                                               self.inprn))
+                # TODO: W * [h, e] [d x 2d] * [2d x 1]
+                # more flexible connections
 
         if self.fnsim == dot_similarity:
             simi = tf.diag_part(self.fnsim(self.leftop(lhs, rell), tf.transpose(self.rightop(rhs, rell)),
@@ -127,10 +129,6 @@ class TransE(object):
             else:
                 self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
                                                                             self.train_inputs, embeddings=self.E)
-        else:
-            # Dummy Inputs
-            self.train_inputs = tf.placeholder(tf.int32, shape=[None])
-            self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
 
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
@@ -139,7 +137,7 @@ class TransE(object):
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
     def assign_initial(self, init_embeddings):
-        if self.event_layer and self.event_layer.shared:
+        if self.event_layer and not self.event_layer.shared:
             return self.event_layer.V.assign(init_embeddings)
         else:
             return self.E.assign(init_embeddings)

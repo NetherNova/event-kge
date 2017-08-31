@@ -3,49 +3,66 @@ import tensorflow as tf
 import itertools
 from scipy.sparse import lil_matrix
 from models.model import SuppliedEmbedding, normalize, SkipgramModel
+import pickle
 
 
 class EmbeddingPreTrainer(object):
-    def __init__(self, ent_dict, batch_generator, embedding_size, vocab_size, num_sampled, batch_size, file_name):
+    def __init__(self, ent_dict, batch_generator, file_name):
         self.ent_dict = ent_dict
         self.batch_generator = batch_generator
-        self.embedding_size = embedding_size
-        self.vocab_size = vocab_size
-        self.num_sampled = num_sampled
-        self.batch_size = batch_size
-        self.model = SkipgramModel(embedding_size, batch_size, num_sampled, vocab_size)
         self.embs = None
         self.file_name = file_name
+        self.file_store = dict()    # params -> file
 
-    def train(self, num_steps):
-        print "Pre-training embeddings..."
+    def get(self, num_steps, embedding_size, batch_size, num_sampled, vocab_size, num_entities):
+        print("Checking for pre-trained embeddings...")
+        params = (num_steps, embedding_size, batch_size, num_sampled, vocab_size)
+        if params in self.file_store:
+            print("Loading from previous run...")
+            return self.load(self.file_store[params], embedding_size)
+        print("Pre-training embeddings...")
+        model = SkipgramModel(embedding_size, batch_size, num_sampled, vocab_size)
         with tf.Session() as session:
-            self.model.create_graph()
-            self.normalized = normalize(self.model.variables())
+            model.create_graph()
+            normalized = normalize(model.variables())
             tf.global_variables_initializer().run()
             average_loss = 0
             for b in range(1, num_steps + 1):
                 # Event batches
-                batch_x, batch_y = self.batch_generator.next(self.batch_size)
-                batch_y = np.array(batch_y).reshape((self.batch_size, 1))
+                batch_x, batch_y = self.batch_generator.next(batch_size)
+                batch_y = np.array(batch_y).reshape((batch_size, 1))
                 feed_dict = {
-                             self.model.train_inputs: batch_x, self.model.train_labels: batch_y
+                             model.train_inputs: batch_x, model.train_labels: batch_y
                              }
-                _, l = session.run(self.model.train(), feed_dict=feed_dict)
+                _, l = session.run(model.train(), feed_dict=feed_dict)
                 average_loss += l
                 if b % 100 == 0:
                     print("Step {0} - average loss {1} ".format(b, average_loss / 100.0))
                     average_loss = 0
-            # TODO: normalize?
-            self.embs = session.run(self.normalized)
+            # TODO: normalize - yup
+            self.embs = session.run(normalized)
+        self.save(params)
+        return self.load(self.file_name + '_'.join([str(p) for p in params]), embedding_size, num_entities)
 
-    def save(self):
+    def save(self, params):
         if self.embs is None:
-            print("No embeddings defined yet")
-            return
+            raise("No embeddings defined yet")
+        self.file_store[params] = self.file_name + '_'.join([str(p) for p in params])
         sup_embs = SuppliedEmbedding(self.embs, self.ent_dict)
-        sup_embs.save_embedding(self.file_name)
-        return sup_embs
+        sup_embs.save_embedding(self.file_name + '_'.join([str(p) for p in params]))
+
+    def load(self, file_name, embedding_size, num_entities):
+        w_bound = np.sqrt(6. / embedding_size)
+        initE = np.random.uniform(-w_bound, w_bound, (num_entities, embedding_size))
+        print("Loading supplied embeddings...")
+        with open(file_name, "rb") as f:
+            supplied_embeddings = pickle.load(f)
+            supplied_dict = supplied_embeddings.get_dictionary()
+            for event_id, emb_id in supplied_dict.iteritems():
+                if event_id in self.ent_dict:
+                    new_id = self.ent_dict[event_id]
+                    initE[new_id] = supplied_embeddings.get_embeddings()[emb_id]
+        return initE
 
 
 class TEKEPreparation(object):

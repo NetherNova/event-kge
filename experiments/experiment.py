@@ -29,8 +29,8 @@ from models.TransH import TransH
 from models.model import ranking_error_triples, l2_similarity, bernoulli_probs
 from models.pre_training import EmbeddingPreTrainer, TEKEPreparation
 
-from event_models.Skipgram import Skipgram
-from event_models.Concatenation import Concatenation
+from event_models.LinearEventModel import Skipgram, Concatenation, Average
+from event_models.Autoencoder import ConvolutionalAutoEncoder, LSTMAutoencoder
 
 from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator, FuturePredictiveBatchGenerator
 from prep.etl import prepare_sequences, message_index
@@ -40,7 +40,7 @@ from experiments.experiment_helper import slice_ontology, get_kg_statistics, get
 
 
 # set fixed random seed
-rnd = np.random.RandomState(42)
+rnd = np.random.RandomState(43)
 
 
 if __name__ == '__main__':
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     ######### Model selection ##########
     model_type = TranslationModels.Trans_E
     # "Skipgram", "Concat", "RNN"
-    event_layer = Concatenation
+    event_layer = LSTMAutoencoder
     store_embeddings = False
 
     ######### Hyper-Parameters #########
@@ -98,11 +98,11 @@ if __name__ == '__main__':
     param_dict['embedding_size'] = [100]
     param_dict['seq_data_size'] = [1.0]
     param_dict['batch_size'] = [32]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.3]     # [0.5, 0.8, 1.0]
+    param_dict['learning_rate'] = [0.05]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
     param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
-    num_epochs = 100
+    num_epochs = 200
     num_negative_triples = 2
     test_proportion = 0.2
     validation_proportion = 0.1
@@ -119,14 +119,16 @@ if __name__ == '__main__':
     print("Valid size: ", valid_size)
     print("Test size: ", test_size)
 
-    # SKIP Parameters
+    # Event layer parameters
     if event_layer is not None:
-        param_dict['num_skips'] = [2]   # [2, 4]
+        param_dict['num_skips'] = [3]   # [2, 4]
         param_dict['num_sampled'] = [7]     # [5, 9]
+        shared = False
         # param_dict['batch_size_sg'] = [2]     # [128, 512]
-        pre_train_steps = 10000
-        pre_train = False
-        supp_event_embeddings = None  # base_path + "Embeddings/supplied_embeddings.pickle"
+        pre_train = True
+        # also used for TEKE
+        pre_train_steps = 12000
+        pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
         if traffic_data:
             sequences = preprocessor.prepare_sequences(path_to_sequence)
         else:
@@ -168,30 +170,18 @@ if __name__ == '__main__':
 
         filter_triples = valid_tg.all_triples
 
-        if event_layer:
+        if event_layer is not None:
             batch_size_sg = (num_sequences * num_epochs) / num_steps
             print("Batch size sg:", batch_size_sg)
             num_skips = params.num_skips
             num_sampled = params.num_sampled
-            if pre_train:
-                pre_trainer = EmbeddingPreTrainer(unique_msgs, SkipgramBatchGenerator(sequences, num_skips, rnd),
-                                                  params.embedding_size, vocab_size, num_sampled, batch_size_sg,
-                                                  supp_event_embeddings)
-                pre_trainer.train(pre_train_steps)
-                pre_trainer.save()
             if event_layer == Skipgram:
                 sg = SkipgramBatchGenerator(sequences, num_skips, rnd)
             else:
-                sg = PredictiveEventBatchGenerator(sequences, num_skips, rnd)
-            event_model = event_layer(num_entities, vocab_size, params.embedding_size, params.num_skips, shared=False,
+                sg = FuturePredictiveBatchGenerator(sequences, num_skips, rnd)
+                num_skips = 2 * num_skips
+            event_model = event_layer(num_entities, vocab_size, params.embedding_size, num_skips, shared=shared,
                                       alpha=params.alpha)
-        else:
-            num_sampled = 0
-            batch_size_sg = 0
-            num_skips = 0
-            sequences = []
-            # dummy batch generator for empty sequence TODO: can we get rid of this?
-            sg = SkipgramBatchGenerator(sequences, num_skips, rnd)
 
         # Model Selection
         if model_type == TranslationModels.Trans_E:
@@ -201,30 +191,19 @@ if __name__ == '__main__':
             model = TransE(*param_list)
         elif model_type == TranslationModels.Trans_H:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
-                          batch_size_sg, num_sampled, vocab_size, params.learning_rate, event_layer,
-                          params.lambd, num_skips, params.alpha]
+                          batch_size_sg, num_sampled, vocab_size, params.learning_rate, event_model,
+                          params.lambd]
             model = TransH(*param_list)
         elif model_type == TranslationModels.RESCAL:
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size,
-                          batch_size_sg, num_sampled, vocab_size, params.learning_rate, event_layer,
-                          params.lambd, num_skips, params.alpha]
+                          batch_size_sg, num_sampled, vocab_size, params.learning_rate, event_model,
+                          params.lambd]
             model = RESCAL(*param_list)
         elif model_type == TranslationModels.TEKE:
             pre_trainer = EmbeddingPreTrainer(unique_msgs, SkipgramBatchGenerator(sequences, num_skips, rnd),
-                                              params.embedding_size, vocab_size, num_sampled, batch_size_sg,
-                                              supp_event_embeddings)
-            pre_trainer.train(10000)
-            pre_trainer.save()
-            w_bound = np.sqrt(6. / params.embedding_size)
-            initE = rnd.uniform(-w_bound, w_bound, (num_entities, params.embedding_size))
-            print("Loading supplied embeddings...")
-            with open(supp_event_embeddings, "rb") as f:
-                supplied_embeddings = pickle.load(f)
-                supplied_dict = supplied_embeddings.get_dictionary()
-                for event_id, emb_id in supplied_dict.iteritems():
-                    if event_id in unique_msgs:
-                        new_id = unique_msgs[event_id]
-                        initE[new_id] = supplied_embeddings.get_embeddings()[emb_id]
+                                              pre_train_embeddings)
+            initE = pre_trainer.get(pre_train_steps, params.embedding_size, batch_size_sg, num_sampled, vocab_size,
+                                    num_entities)
             tk = TEKEPreparation(sequences, initE, num_entities)
             param_list = [num_entities, num_relations, params.embedding_size, params.batch_size, fnsim, tk]
             model = TEKE(*param_list)
@@ -236,7 +215,8 @@ if __name__ == '__main__':
             model.create_graph()
             saver = tf.train.Saver(model.variables())
             tf.global_variables_initializer().run()
-            if event_model is not None and not event_model.shared:
+            if event_model is not None and not event_model.shared and model_type != TranslationModels.TEKE:
+                # set the non-event entities in the non-shared event embeddings to zero
                 session.run([event_model.update])
             print('Initialized graph')
 
@@ -246,17 +226,12 @@ if __name__ == '__main__':
             loss_list = []
 
             # Initialize some / event entities with supplied embeddings
-            if supp_event_embeddings and model_type != TranslationModels.TEKE:
-                w_bound = np.sqrt(6. / params.embedding_size)
-                initE = rnd.uniform(-w_bound, w_bound, (num_entities, params.embedding_size))
-                print("Loading supplied embeddings...")
-                with open(supp_event_embeddings, "rb") as f:
-                    supplied_embeddings = pickle.load(f)
-                    supplied_dict = supplied_embeddings.get_dictionary()
-                    for event_id, emb_id in supplied_dict.iteritems():
-                        if event_id in unique_msgs:
-                            new_id = unique_msgs[event_id]
-                            initE[new_id] = supplied_embeddings.get_embeddings()[emb_id]
+            if pre_train and model_type != TranslationModels.TEKE:
+                # TODO: adapt to selected event_model for pre-training
+                pre_trainer = EmbeddingPreTrainer(unique_msgs, SkipgramBatchGenerator(sequences, num_skips, rnd),
+                                                  pre_train_embeddings)
+                initE = pre_trainer.get(pre_train_steps, params.embedding_size, batch_size_sg, num_sampled, vocab_size,
+                                        num_entities)
                 session.run(model.assign_initial(initE))
 
             if store_embeddings:
@@ -268,16 +243,20 @@ if __name__ == '__main__':
                 # triple batches
                 batch_pos, batch_neg = train_tg.next(params.batch_size)
                 valid_batch_pos, _ = valid_tg.next(valid_size)
-                # Event batches
-                batch_x, batch_y = sg.next(batch_size_sg)
-                batch_y = np.array(batch_y).reshape((batch_size_sg, 1))
 
                 feed_dict = {
                         model.inpl: batch_pos[1, :], model.inpr: batch_pos[0, :], model.inpo: batch_pos[2, :],
                         model.inpln: batch_neg[1, :], model.inprn: batch_neg[0, :], model.inpon: batch_neg[2, :],
-                        model.train_inputs: batch_x, model.train_labels: batch_y,
                         model.global_step: b
                 }
+
+                if event_model is not None and not model_type == TranslationModels.TEKE:
+                    # Event batches
+                    batch_x, batch_y = sg.next(batch_size_sg)
+                    batch_y = np.array(batch_y).reshape((batch_size_sg, 1))
+                    feed_dict[model.train_inputs] = batch_x
+                    feed_dict[model.train_labels] = batch_y
+
                 # One train step in mini-batch
                 _, l = session.run(model.train(), feed_dict=feed_dict)
                 average_loss += l
@@ -309,8 +288,8 @@ if __name__ == '__main__':
 
                     # The average loss is an estimate of the loss over the last eval_step_size batches.
                     print('Average loss at step {0}: {1}'.format(b, average_loss))
-                    print("\t Validation Hits10: ", hits_10)
-                    print("\t Validation MeanRank: ", mean_rank)
+                    print('\t Validation Hits10: ', hits_10)
+                    print('\t Validation MeanRank: ', mean_rank)
                     average_loss = 0
 
                     if overall_best_performance > mean_rank:

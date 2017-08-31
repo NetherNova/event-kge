@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from models.model import max_margin
 from scipy.special import expit
-from event_models.Skipgram import Skipgram
+from event_models.LinearEventModel import Skipgram
 
 
 class RESCAL(object):
@@ -121,10 +121,6 @@ class RESCAL(object):
             else:
                 self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
                                                                             self.train_inputs, embeddings=self.E)
-        else:
-            # Dummy Inputs
-            self.train_inputs = tf.placeholder(tf.int32, shape=[None])
-            self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
 
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
@@ -134,7 +130,10 @@ class RESCAL(object):
         self.optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(self.loss)
 
     def assign_initial(self, init_embeddings):
-        return self.E.assign(init_embeddings)
+        if self.event_layer and not self.event_layer.shared:
+            return self.event_layer.V.assign(init_embeddings)
+        else:
+            return self.E.assign(init_embeddings)
 
     def post_ops(self):
         return []

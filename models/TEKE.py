@@ -53,7 +53,7 @@ class TEKE(object):
         lhs = n_h.dot(A) + ent_embs[test_inpl]  # [num_test, d]
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
-            lhs_inds = np.argwhere(test_inpo == i)[:, 0]
+            lhs_inds = np.argwhere(test_inpo == i)[:,0]
             tmp_rhs = unique_rhs[:, r, :]
             results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
         return results
@@ -70,7 +70,7 @@ class TEKE(object):
         self.A = tf.Variable(tf.random_uniform((self.embedding_size, self.embedding_size), minval=-w_bound,
                                                maxval=w_bound), name="A")
 
-        self.N = tf.constant(self.tk.get_pointwise())
+        self.N = tf.Variable(tf.constant(self.tk.get_pointwise(), tf.float32), trainable=False)
 
         self.normalize_E = self.E.assign(tf.nn.l2_normalize(self.E, 1))
         self.normalize_R = self.R.assign(tf.nn.l2_normalize(self.R, 1))
@@ -97,17 +97,13 @@ class TEKE(object):
         rhsn = tf.nn.embedding_lookup(self.E, self.inprn)
         relln = tf.nn.embedding_lookup(self.R, self.inpon)
 
-        lhs = tf.matmul(self.n_x_h, self.A) + lhs
-        rhs = tf.matmul(self.n_x_t, self.A) + rhs
+        lhs = tf.matmul(n_h, self.A) + lhs
+        rhs = tf.matmul(n_t, self.A) + rhs
         # rell = tf.matmul(self.n_x_y, self.B) + rell
 
-        lhsn = tf.matmul(self.n_x_hn, self.A) + lhsn
-        rhsn = tf.matmul(self.n_x_tn, self.A) + rhsn
+        lhsn = tf.matmul(n_hn, self.A) + lhsn
+        rhsn = tf.matmul(n_tn, self.A) + rhsn
         # relln = tf.matmul(self.n_x_yn, self.B) + relln
-
-        # dummy not used
-        self.train_inputs = tf.placeholder(tf.int32, shape=[None])
-        self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
 
         if self.fnsim == dot_similarity:
             simi = tf.diag_part(self.fnsim(self.leftop(lhs, rell), tf.transpose(self.rightop(rhs, rell)),
@@ -120,8 +116,8 @@ class TEKE(object):
 
         kg_loss = max_margin(simi, simin)
 
-        self.reg1 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(self.n_x_h, self.A)**2, axis=1)) - 1))
-        self.reg2 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(self.n_x_t, self.A) ** 2, axis=1)) - 1))
+        self.reg1 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(n_h, self.A)**2, axis=1)) - 1))
+        self.reg2 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(n_t, self.A) ** 2, axis=1)) - 1))
 
         self.loss = kg_loss
 

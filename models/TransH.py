@@ -1,12 +1,12 @@
 import tensorflow as tf
 import numpy as np
 from models.model import l2_similarity, dot, trans, ident_entity, max_margin, skipgram_loss, ranking_error_triples
-from event_models.Skipgram import Skipgram
+from event_models.LinearEventModel import Skipgram
 
 
 class TransH(object):
     def __init__(self, num_entities, num_relations, embedding_size, batch_size_kg, batch_size_sg, num_sampled,
-                 vocab_size, init_lr=1.0, skipgram=True, lambd=None, alpha=1.0):
+                 vocab_size, init_lr=1.0, event_layer=None, lambd=None):
         """
         Implements translation-based triplet scoring from negative sampling (TransH)
         :param num_entities:
@@ -25,9 +25,8 @@ class TransH(object):
         self.batch_size_kg = batch_size_kg
         self.batch_size_sg = batch_size_sg
         self.init_lr = init_lr
-        self.skipgram = skipgram
         self.lambd = lambd
-        self.alpha = alpha
+        self.event_layer = event_layer
 
     def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, w_embs):
         lhs = ent_embs # [num_entities, d]
@@ -126,6 +125,8 @@ class TransH(object):
 
         kg_loss = max_margin(simi, simin) + self.lambd * (reg1 + reg2)
 
+        self.loss = kg_loss
+
         if self.event_layer is not None:
             if type(self.event_layer) == Skipgram:
                 self.train_inputs = tf.placeholder(tf.int32, shape=[self.batch_size_sg])
@@ -138,10 +139,6 @@ class TransH(object):
             else:
                 self.loss += self.event_layer.alpha * self.event_layer.loss(self.num_sampled, self.train_labels,
                                                                             self.train_inputs, embeddings=self.E)
-        else:
-            # Dummy Inputs
-            self.train_inputs = tf.placeholder(tf.int32, shape=[None])
-            self.train_labels = tf.placeholder(tf.int32, shape=[None, 1])
 
         self.global_step = tf.Variable(0, trainable=False)
         starter_learning_rate = self.init_lr
@@ -150,7 +147,10 @@ class TransH(object):
 
 
     def assign_initial(self, init_embeddings):
-        return self.E.assign(init_embeddings)
+        if self.event_layer and not self.event_layer.shared:
+            return self.event_layer.V.assign(init_embeddings)
+        else:
+            return self.E.assign(init_embeddings)
 
     def post_ops(self):
         return [self.normalize_W]

@@ -15,7 +15,7 @@ def dot_similarity(x, y, broadcast=False, expand=False):
 
 
 def dot(x, y):
-    return tf.reduce_sum(tf.mul(x, y), 1, keep_dims=True)
+    return tf.reduce_sum(tf.multiply(x, y), 1, keep_dims=True)
 
 
 def l2_similarity(x, y, broadcast=False, expand=True):

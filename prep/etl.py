@@ -118,20 +118,29 @@ def update_amberg_ontology(ont, ent_dict, msg_dict, mod_dict, fe_dict, var_dict,
                 fe_or_module = fe_or_module[0].replace('odule', '').replace(' ', '')
         if not fe_or_module_id:
             continue
-        ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
+        event_map = {'Maximum Stau': 'Max-Jam-Alarm',
+                     'Maximum-Stau': 'Max-Jam-Alarm',
+                     'Minimum Stau': 'Min-Jam-Alarm',
+                     'Minimum-Stau': 'Min-Jam-Alarm',
+                     'Stau nach Laserstation': 'Laser-Jam',
+                     'Stau nach FE': 'FE-Jam',
+                     'Staubsauger': 'Cleaning-Event',
+                     'F?llstand Topf 1-polig': 'Pole-Material-Event',
+                     'F?llstand Topf Kontakt': 'Contact-Material-Event',
+                     'Z-Achse M5': 'Z-Axis-Event',
+                     'Achse M9': 'M9-Axis-Event',
+                     'Achse M10': 'M10-Axis-Event',
+                     'X-Achse': 'X-Axis-Event',
+                     'Achse M2': 'M2-Axis-Event',
+                     'Achse M1 ': 'M1-Axis-Event',
+                     'Stopper 3': 'Stopper-3-Event',
+                     'Stopper 4': 'Stopper-4-Event',
+                     'Stopper 5': 'Stopper-5-Event'}
+        for k,v in event_map.iteritems():
+            if k in msg:
+                ont.add((amberg_ns['Event-'+str(id)], RDF.type, amberg_ns[v]))
+       # ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
         ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module[0]]))
-        if "Stau" in msg:
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Jam-Event']))
-        elif "Achse" in msg:
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Axis-Event']))
-        elif "F?llstand" in msg or "fehlt" in msg:
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Material-Event']))
-        elif "Schutzt?re" in msg:
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Door-Event']))
-        elif 'Variantenwechsel' in msg:
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Changeover-Event']))
-        elif 'Staubsauger' in msg:
-            ont.add((URIRef(amberg_ns['Event-' + str(id)]), RDF.type, base_ns['Cleaning-Event']))
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))
         ent_dict[str(amberg_ns['Event-'+str(id)])] = id
         ent_dict[str(amberg_ns[fe_or_module])] = fe_or_module_id
