@@ -45,14 +45,14 @@ rnd = np.random.RandomState(43)
 
 if __name__ == '__main__':
     ####### PATH PARAMETERS ########
-    base_path = "../clones/"
+    base_path = "../sim_data/"
     path_to_store_model = base_path + "Embeddings/"
     path_to_events = base_path + "Sequences/"
-    path_to_kg = base_path + "Ontology/amberg_clone.rdf"
+    path_to_kg = base_path + "Ontology/test_6.xml"
     path_to_store_sequences = base_path + "Sequences/"
     path_to_store_embeddings = base_path + "Embeddings/"
-    traffic_data = False
-    path_to_sequence = base_path + 'Sequences/sequence.txt'
+    traffic_data = True
+    path_to_sequence = base_path + 'Sequences/sequence_6.txt'
     preprocessor = PreProcessor(path_to_kg)
     tk = None
     bern_probs = None
@@ -61,7 +61,7 @@ if __name__ == '__main__':
     if traffic_data:
         exclude_rels = []
         preprocessor = PreProcessor(path_to_kg)
-        preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt')
+        preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs6.txt')
         amberg_params = None
     else:
         exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
@@ -90,22 +90,22 @@ if __name__ == '__main__':
     ######### Model selection ##########
     model_type = TranslationModels.Trans_E
     # "Skipgram", "Concat", "RNN"
-    event_layer = LSTMAutoencoder
+    event_layer = Average
     store_embeddings = False
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [100]
+    param_dict['embedding_size'] = [40]
     param_dict['seq_data_size'] = [1.0]
-    param_dict['batch_size'] = [32]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.05]     # [0.5, 0.8, 1.0]
+    param_dict['batch_size'] = [64]     # [32, 64, 128]
+    param_dict['learning_rate'] = [0.1]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
     param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
     num_epochs = 200
     num_negative_triples = 2
-    test_proportion = 0.2
-    validation_proportion = 0.1
+    test_proportion = 0.02
+    validation_proportion = 0.01
     bernoulli = True
     fnsim = l2_similarity
 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         pre_train_steps = 12000
         pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
         if traffic_data:
-            sequences = preprocessor.prepare_sequences(path_to_sequence)
+            sequences = preprocessor.prepare_sequences(path_to_sequence, use_dict=False)
         else:
             merged = preprocessor.get_merged()
             sequences = prepare_sequences(merged, message_index,
@@ -171,7 +171,10 @@ if __name__ == '__main__':
         filter_triples = valid_tg.all_triples
 
         if event_layer is not None:
-            batch_size_sg = (num_sequences * num_epochs) / num_steps
+            if traffic_data:
+                batch_size_sg = (len(sequences[0]) * num_epochs) / num_steps
+            else:
+                batch_size_sg = (num_sequences * num_epochs) / num_steps
             print("Batch size sg:", batch_size_sg)
             num_skips = params.num_skips
             num_sampled = params.num_sampled

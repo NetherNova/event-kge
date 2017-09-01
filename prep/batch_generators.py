@@ -32,7 +32,7 @@ class SkipgramBatchGenerator(object):
         batch_x = []
         batch_y = []
         for b in range(batch_size):
-            self.data_index = self.data_index % len(self.data)
+            self.data_index = self.data_index % len(self.data)  #
             batch_x.append(self.data[self.data_index][0])
             batch_y.append(self.data[self.data_index][1])
             self.data_index += 1

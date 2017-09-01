@@ -109,6 +109,7 @@ class LSTMAutoencoder(EventAutoEncoder):
         self.z_codes, self.enc_state = tf.nn.dynamic_rnn(
             self._enc_cell, tf.stack(inputs, axis=0), dtype=tf.float32, scope='LSTM'
         )
+        # enctoder state [batch, num_hidden] last output state of the encoder
         if True:
             dec_inputs = [tf.zeros(tf.shape(inputs[0]), dtype=tf.float32)
                           for _ in range(len(inputs))]
@@ -119,8 +120,9 @@ class LSTMAutoencoder(EventAutoEncoder):
             dec_weight_ = tf.tile(tf.expand_dims(self.dec_weight_, 0), [self.batch_num,1,1])
             self.output = tf.matmul(dec_output_, dec_weight_) + self.dec_bias_
         else:
+            # assign state as above
             dec_state = self.enc_state
-            dec_input_ = tf.zeros(tf.shape(inputs[0]), dtype=tf.float32)
+            dec_input_ = tf.zeros(tf.shape(inputs[0]), dtype=tf.float32)    # this should be the actual input?
             dec_outputs = []
 
             for step in range(len(inputs)):

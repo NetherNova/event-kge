@@ -82,7 +82,7 @@ class PreProcessor(object):
         # self.ent_dict = sorted(self.ent_dict.items(), key=operator.itemgetter(1), reverse=False)
         self.unique_msgs = self.ent_dict.copy()
 
-    def prepare_sequences(self, path_to_input, path_to_output):
+    def prepare_sequences(self, path_to_input, use_dict=True):
         """
         Dumps pickle for sequences and dictionary
         :param data_frame:
@@ -95,7 +95,10 @@ class PreProcessor(object):
             result = []
             for line in f:
                 entities = line.split(',')
-                result.append([int(e.strip()) for e in entities if int(e.strip()) in self.unique_msgs.values()])
+                if use_dict:
+                    result.append([int(e.strip()) for e in entities if int(e.strip()) in self.unique_msgs.values()])
+                else:
+                    result.append([e for e in entities])
         print("Preparing sequential data...")
         print("Processed {0} sequences".format(len(result)))
         return result
