@@ -88,7 +88,7 @@ if __name__ == '__main__':
     zero_shot_triples = []
 
     ######### Model selection ##########
-    model_type = TranslationModels.Trans_E
+    model_type = TranslationModels.TEKE
     # "Skipgram", "Concat", "RNN"
     event_layer = Skipgram
     store_embeddings = False
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     param_dict['batch_size'] = [32]     # [32, 64, 128]
     param_dict['learning_rate'] = [0.1, 0.5]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
-    param_dict['alpha'] = [1.0]     # event embedding weighting
+    param_dict['alpha'] = [0.5, 1.0]     # event embedding weighting
     eval_step_size = 1000
     num_epochs = 100
     num_negative_triples = 2
