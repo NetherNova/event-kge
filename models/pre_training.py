@@ -36,8 +36,8 @@ class EmbeddingPreTrainer(object):
                              }
                 _, l = session.run(model.train(), feed_dict=feed_dict)
                 average_loss += l
-                if b % 100 == 0:
-                    print("Step {0} - average loss {1} ".format(b, average_loss / 100.0))
+                if b % 1000 == 0:
+                    print("Step {0} - average loss {1} ".format(b, average_loss / 1000.0))
                     average_loss = 0
             # TODO: normalize - yup
             self.embs = session.run(normalized)

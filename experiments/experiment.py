@@ -45,14 +45,14 @@ rnd = np.random.RandomState(43)
 
 if __name__ == '__main__':
     ####### PATH PARAMETERS ########
-    base_path = "../sim_data/"
+    base_path = "../clones/"
     path_to_store_model = base_path + "Embeddings/"
     path_to_events = base_path + "Sequences/"
-    path_to_kg = base_path + "Ontology/test_6.xml"
+    path_to_kg = base_path + "Ontology/amberg_clone.rdf"
     path_to_store_sequences = base_path + "Sequences/"
     path_to_store_embeddings = base_path + "Embeddings/"
-    traffic_data = True
-    path_to_sequence = base_path + 'Sequences/sequence_6.txt'
+    traffic_data = False
+    path_to_sequence = base_path + 'Sequences/sequence.txt'
     preprocessor = PreProcessor(path_to_kg)
     tk = None
     bern_probs = None
@@ -68,7 +68,7 @@ if __name__ == '__main__':
         max_events = None
         max_seq = None
         # sequence window size in minutes
-        window_size = 0.5
+        window_size = 1.0
         amberg_params = (path_to_events, max_events)
 
     preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params)
@@ -88,24 +88,24 @@ if __name__ == '__main__':
     zero_shot_triples = []
 
     ######### Model selection ##########
-    model_type = TranslationModels.Trans_E
+    model_type = TranslationModels.TEKE
     # "Skipgram", "Concat", "RNN"
-    event_layer = Average
+    event_layer = Skipgram
     store_embeddings = False
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [40]
+    param_dict['embedding_size'] = [80, 100]
     param_dict['seq_data_size'] = [1.0]
-    param_dict['batch_size'] = [64]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.1]     # [0.5, 0.8, 1.0]
+    param_dict['batch_size'] = [32]     # [32, 64, 128]
+    param_dict['learning_rate'] = [0.1, 0.2]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
-    param_dict['alpha'] = [1.0]     # event embedding weighting
+    param_dict['alpha'] = [0.5, 1.0]     # event embedding weighting
     eval_step_size = 1000
     num_epochs = 200
     num_negative_triples = 2
-    test_proportion = 0.02
-    validation_proportion = 0.01
+    test_proportion = 0.2
+    validation_proportion = 0.1
     bernoulli = True
     fnsim = l2_similarity
 
@@ -121,11 +121,11 @@ if __name__ == '__main__':
 
     # Event layer parameters
     if event_layer is not None:
-        param_dict['num_skips'] = [3]   # [2, 4]
-        param_dict['num_sampled'] = [7]     # [5, 9]
+        param_dict['num_skips'] = [2,3,4]   # [2, 4]
+        param_dict['num_sampled'] = [10]     # [5, 9]
         shared = False
         # param_dict['batch_size_sg'] = [2]     # [128, 512]
-        pre_train = True
+        pre_train = False
         # also used for TEKE
         pre_train_steps = 12000
         pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
@@ -174,7 +174,7 @@ if __name__ == '__main__':
             if traffic_data:
                 batch_size_sg = (len(sequences[0]) * num_epochs) / num_steps
             else:
-                batch_size_sg = (num_sequences * num_epochs) / num_steps
+                batch_size_sg = 32
             print("Batch size sg:", batch_size_sg)
             num_skips = params.num_skips
             num_sampled = params.num_sampled
