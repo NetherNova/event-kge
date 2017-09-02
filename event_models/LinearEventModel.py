@@ -33,7 +33,7 @@ class LinearEventModel(object):
         train_embeddings = self.combine_op(train_embeddings)
 
         skipgram_loss = tf.reduce_mean(
-            tf.nn.nce_loss(weights=embeddings,
+            tf.nn.nce_loss(weights=self.nce_weights,
                            biases=self.nce_biases,
                            labels=train_labels,
                            inputs=train_embeddings,

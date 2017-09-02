@@ -139,6 +139,7 @@ def update_amberg_ontology(ont, ent_dict, msg_dict, mod_dict, fe_dict, var_dict,
         for k,v in event_map.iteritems():
             if k in msg:
                 ont.add((amberg_ns['Event-'+str(id)], RDF.type, amberg_ns[v]))
+        ont.add((amberg_ns['Event-' + str(id)], RDF.type, amberg_ns['Event']))
        # ont.add((amberg_ns['Event-'+str(id)], RDF.type, base_ns['Event']))
         ont.add((amberg_ns['Event-'+str(id)], occursOn, amberg_ns[fe_or_module[0]]))
         ont.add((amberg_ns[fe_or_module], RDF.type, amberg_ns['ProductionUnit']))

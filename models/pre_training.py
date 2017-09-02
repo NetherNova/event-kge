@@ -19,7 +19,7 @@ class EmbeddingPreTrainer(object):
         params = (num_steps, embedding_size, batch_size, num_sampled, vocab_size)
         if params in self.file_store:
             print("Loading from previous run...")
-            return self.load(self.file_store[params], embedding_size)
+            return self.load(self.file_store[params], embedding_size, num_entities)
         print("Pre-training embeddings...")
         model = SkipgramModel(embedding_size, batch_size, num_sampled, vocab_size)
         with tf.Session() as session:
@@ -36,8 +36,8 @@ class EmbeddingPreTrainer(object):
                              }
                 _, l = session.run(model.train(), feed_dict=feed_dict)
                 average_loss += l
-                if b % 100 == 0:
-                    print("Step {0} - average loss {1} ".format(b, average_loss / 100.0))
+                if b % 1000 == 0:
+                    print("Step {0} - average loss {1} ".format(b, average_loss / 1000.0))
                     average_loss = 0
             # TODO: normalize - yup
             self.embs = session.run(normalized)

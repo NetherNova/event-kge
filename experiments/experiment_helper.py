@@ -15,6 +15,7 @@ from models.TEKE import TEKE
 from models.TransH import TransH
 from models.model import ranking_error_triples
 
+
 class TranslationModels:
     Trans_E, Trans_H, RESCAL, TEKE = range(4)
 
