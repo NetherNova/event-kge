@@ -60,7 +60,7 @@ class ConvolutionalAutoEncoder(EventAutoEncoder):
         output = tf.nn.relu(tf.add(
             tf.nn.conv2d_transpose(
                 stacked_embeddings, self.Wfilter,
-                tf.stack([x.get_shape()[0], self.num_skips, x.get_shape()[2], 1]),
+                tf.stack([x.get_shape()[0], 2 * self.num_skips + 1, x.get_shape()[2], 1]),
                 strides=[1, 2, 2, 1], padding='SAME'), self.bfilter2))
         stacked_embeddings = output
         y = tf.squeeze(stacked_embeddings, 3)

@@ -89,20 +89,38 @@ class TransE(object):
         if self.event_layer is not None:
             self.event_layer.create_graph()
             if not self.event_layer.shared:
-                self.a = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
-                                                   maxval=w_bound), name="a")
-                self.b = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
-                                                       maxval=w_bound), name="b")
-                lhs = tf.multiply(self.a, lhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
-                                                                                            self.inpl))
-                rhs = tf.multiply(self.a, rhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
-                                                                                            self.inpr))
+                # self.a = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
+                #                                    maxval=w_bound), name="a")
+                # self.b = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
+                #                                        maxval=w_bound), name="b")
+                # lhs = tf.multiply(self.a, lhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                #                                                                             self.inpl))
+                # rhs = tf.multiply(self.a, rhs) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                #                                                                             self.inpr))
+                #
+                # lhsn = tf.multiply(self.a, lhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                #                                                                               self.inpln))
+                # rhsn = tf.multiply(self.a, rhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
+                #                                                                               self.inprn))
 
-                lhsn = tf.multiply(self.a, lhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
-                                                                                              self.inpln))
-                rhsn = tf.multiply(self.a, rhsn) + tf.multiply(self.b, tf.nn.embedding_lookup(self.event_layer.V,
-                                                                                              self.inprn))
-                # TODO: W * [h, e] [d x 2d] * [2d x 1]
+                # Option 2
+                self.a = tf.Variable(tf.random_uniform([self.num_relations, self.embedding_size], minval=-w_bound,
+                                                       maxval=w_bound), name="a")
+                self.b = tf.Variable(tf.random_uniform([self.num_relations, self.embedding_size], minval=-w_bound,
+                                                       maxval=w_bound), name="b")
+
+                a_r = tf.nn.embedding_lookup(self.a, self.inpo)
+                b_r = tf.nn.embedding_lookup(self.b, self.inpo)
+
+                lhs = tf.multiply(a_r, lhs) + tf.multiply(b_r, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                                self.inpl))
+                rhs = tf.multiply(a_r, rhs) + tf.multiply(b_r, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                                self.inpr))
+
+                lhsn = tf.multiply(a_r, lhsn) + tf.multiply(b_r, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                                  self.inpln))
+                rhsn = tf.multiply(a_r, rhsn) + tf.multiply(b_r, tf.nn.embedding_lookup(self.event_layer.V,
+                                                                                                  self.inprn))
                 # more flexible connections
 
         if self.fnsim == dot_similarity:

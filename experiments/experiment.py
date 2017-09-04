@@ -18,7 +18,6 @@
 # - pandas
 
 import csv
-import pickle
 import numpy as np
 import tensorflow as tf
 
@@ -32,7 +31,8 @@ from models.pre_training import EmbeddingPreTrainer, TEKEPreparation
 from event_models.LinearEventModel import Skipgram, Concatenation, Average
 from event_models.Autoencoder import ConvolutionalAutoEncoder, LSTMAutoencoder
 
-from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator, FuturePredictiveBatchGenerator
+
+from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator, FuturePredictiveBatchGenerator, AutoEncoderBatchGenerator
 from prep.etl import prepare_sequences, message_index
 from prep.preprocessing import PreProcessor
 from experiments.experiment_helper import slice_ontology, get_kg_statistics, get_low_dim_embs, get_zero_shot_scenario, \
@@ -88,9 +88,9 @@ if __name__ == '__main__':
     zero_shot_triples = []
 
     ######### Model selection ##########
-    model_type = TranslationModels.TEKE
+    model_type = TranslationModels.Trans_E
     # "Skipgram", "Concat", "RNN"
-    event_layer = Skipgram
+    event_layer = ConvolutionalAutoEncoder
     store_embeddings = False
 
     ######### Hyper-Parameters #########
@@ -123,11 +123,11 @@ if __name__ == '__main__':
     if event_layer is not None:
         param_dict['num_skips'] = [2]   # [2, 4]
         param_dict['num_sampled'] = [10]     # [5, 9]
-        shared = False
+        shared = True
         # param_dict['batch_size_sg'] = [2]     # [128, 512]
         pre_train = False
         # also used for TEKE
-        pre_train_steps = 12000
+        pre_train_steps = 15000
         pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
         if traffic_data:
             sequences = preprocessor.prepare_sequences(path_to_sequence, use_dict=False)
@@ -180,9 +180,11 @@ if __name__ == '__main__':
             num_sampled = params.num_sampled
             if event_layer == Skipgram:
                 sg = SkipgramBatchGenerator(sequences, num_skips, rnd)
+            elif event_layer == ConvolutionalAutoEncoder:
+                sg = AutoEncoderBatchGenerator(sequences, num_skips, rnd)
             else:
-                sg = FuturePredictiveBatchGenerator(sequences, num_skips, rnd)
-                num_skips = 2 * num_skips
+                sg = PredictiveEventBatchGenerator(sequences, num_skips, rnd)
+                # num_skips = 2 * num_skips
             event_model = event_layer(num_entities, vocab_size, params.embedding_size, num_skips, shared=shared,
                                       alpha=params.alpha)
         else:
