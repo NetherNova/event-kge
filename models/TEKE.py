@@ -34,27 +34,29 @@ class TEKE(object):
 
         lhs = n_h.dot(A) + ent_embs
         unique_inpo = np.unique(test_inpo)
-        unique_rell = r_embs[unique_inpo]
+        # unique_rell = r_embs[unique_inpo]
         rhs = n_t.dot(A) + ent_embs[test_inpr]
-        unique_lhs = lhs[:, np.newaxis] + unique_rell
+        # unique_lhs = lhs[:, np.newaxis] + unique_rell
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
         # every unique combination of inpr inpo
         for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:,0]
-            tmp_lhs = unique_lhs[:, r, :]
+            # tmp_lhs = unique_lhs[:, r, :]
+            tmp_lhs = lhs + r_embs[r]
             results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
         return results
 
     def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, A, n_h, n_t):
         rhs = n_t.dot(A) + ent_embs
         unique_inpo = np.unique(test_inpo)
-        unique_rell = r_embs[unique_inpo]
-        unique_rhs = unique_rell - rhs[:, np.newaxis]
+        # unique_rell = r_embs[unique_inpo]
+        # unique_rhs = unique_rell - rhs[:, np.newaxis]
         lhs = n_h.dot(A) + ent_embs[test_inpl]  # [num_test, d]
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             lhs_inds = np.argwhere(test_inpo == i)[:,0]
-            tmp_rhs = unique_rhs[:, r, :]
+            # tmp_rhs = unique_rhs[:, r, :]
+            tmp_rhs = r_embs[r] - rhs
             results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
         return results
 
@@ -116,8 +118,8 @@ class TEKE(object):
 
         kg_loss = max_margin(simi, simin)
 
-        self.reg1 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(n_h, self.A)**2, axis=1)) - 1))
-        self.reg2 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(n_t, self.A) ** 2, axis=1)) - 1))
+        # self.reg1 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(n_h, self.A)**2, axis=1)) - 1))
+        # self.reg2 = tf.maximum(0., tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.matmul(n_t, self.A)**2, axis=1)) - 1))
 
         self.loss = kg_loss
 
@@ -131,7 +133,7 @@ class TEKE(object):
         return self.E.assign(init_embeddings)
 
     def post_ops(self):
-        return [self.normalize_E, self.normalize_R]
+        return [self.normalize_E]
 
     def train(self):
         return [self.optimizer, self.loss]

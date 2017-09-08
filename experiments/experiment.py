@@ -20,6 +20,7 @@
 import csv
 import numpy as np
 import tensorflow as tf
+from rdflib import URIRef
 
 from models.RESCAL import RESCAL
 from models.TEKE import TEKE
@@ -28,7 +29,7 @@ from models.TransH import TransH
 from models.model import ranking_error_triples, l2_similarity, bernoulli_probs
 from models.pre_training import EmbeddingPreTrainer, TEKEPreparation
 
-from event_models.LinearEventModel import Skipgram, Concatenation, Average
+from event_models.LinearEventModel import Skipgram, ConcatenationFull, Average
 from event_models.Autoencoder import ConvolutionalAutoEncoder, LSTMAutoencoder
 
 
@@ -45,13 +46,13 @@ rnd = np.random.RandomState(43)
 
 if __name__ == '__main__':
     ####### PATH PARAMETERS ########
-    base_path = "../clones/"
+    base_path = "../traffic_data/"
     path_to_store_model = base_path + "Embeddings/"
     path_to_events = base_path + "Sequences/"
-    path_to_kg = base_path + "Ontology/amberg_clone.rdf"
+    path_to_kg = base_path + "Ontology/traffic_individuals.xml"
     path_to_store_sequences = base_path + "Sequences/"
     path_to_store_embeddings = base_path + "Embeddings/"
-    traffic_data = False
+    traffic_data = True
     path_to_sequence = base_path + 'Sequences/sequence.txt'
     preprocessor = PreProcessor(path_to_kg)
     tk = None
@@ -59,9 +60,11 @@ if __name__ == '__main__':
     num_sequences = None
 
     if traffic_data:
+        max_events = 4000
         exclude_rels = []
         preprocessor = PreProcessor(path_to_kg)
-        preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt')
+        excluded_events = preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt', max_events=max_events)
+        excluded_events = [URIRef(('http://www.siemens.com/citypulse#' + e)) for e in excluded_events]
         amberg_params = None
     else:
         exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
@@ -71,7 +74,8 @@ if __name__ == '__main__':
         window_size = 1.0
         amberg_params = (path_to_events, max_events)
 
-    preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params)
+    preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params,
+                                      excluded_entities=excluded_events, clean_schema=False)
     vocab_size = preprocessor.get_vocab_size()
     unique_msgs = preprocessor.get_unique_msgs()
     ent_dict = preprocessor.get_ent_dict()
@@ -90,22 +94,22 @@ if __name__ == '__main__':
     ######### Model selection ##########
     model_type = TranslationModels.Trans_E
     # "Skipgram", "Concat", "RNN"
-    event_layer = ConvolutionalAutoEncoder
+    event_layer = None
     store_embeddings = False
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [80]
+    param_dict['embedding_size'] = [60]
     param_dict['seq_data_size'] = [1.0]
     param_dict['batch_size'] = [32]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.1, 0.5]     # [0.5, 0.8, 1.0]
-    param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
-    param_dict['alpha'] = [0.5, 1.0]     # event embedding weighting
+    param_dict['learning_rate'] = [0.01]     # [0.5, 0.8, 1.0]
+    param_dict['lambd'] = [0.01]     # regularizer (RESCAL)
+    param_dict['alpha'] = [1.0]     # event embedding weighting
     eval_step_size = 1000
-    num_epochs = 100
+    num_epochs = 50
     num_negative_triples = 2
-    test_proportion = 0.2
-    validation_proportion = 0.1
+    test_proportion = 0.05
+    validation_proportion = 0.025
     bernoulli = True
     fnsim = l2_similarity
 
@@ -174,7 +178,7 @@ if __name__ == '__main__':
             if traffic_data:
                 batch_size_sg = (len(sequences[0]) * num_epochs) / num_steps
             else:
-                batch_size_sg = 11 # (sum([len(sequences[i]) for i in range(num_sequences)]) * num_epochs) / num_steps
+                batch_size_sg = params.batch_size # (sum([len(sequences[i]) for i in range(num_sequences)]) * num_epochs) / num_steps
             print("Batch size sg:", batch_size_sg)
             num_skips = params.num_skips
             num_sampled = params.num_sampled
@@ -190,6 +194,7 @@ if __name__ == '__main__':
         else:
             batch_size_sg = 0
             num_sampled = 0
+            num_skips = 0
             event_model = None
             pre_train = False
 

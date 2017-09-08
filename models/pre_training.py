@@ -77,7 +77,7 @@ class TEKEPreparation(object):
         self.num_entities = num_entities
         self.calculate_cooc()
         self.calculate_pointwise()
-        self.calculate_pairwise()
+        # self.calculate_pairwise()
 
     def calculate_cooc(self):
         window_size = 5

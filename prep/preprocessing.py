@@ -1,5 +1,6 @@
 from rdflib import ConjunctiveGraph, URIRef, RDF, RDFS, OWL, Literal
 from prep.etl import get_merged_dataframe, get_unique_entities, update_amberg_ontology
+import operator
 
 
 schema_relations = [RDFS.subClassOf, RDFS.subPropertyOf, OWL.inverseOf, OWL.disjointWith, OWL.imports]
@@ -15,6 +16,17 @@ def remove_rel_triples(g, relation_list):
     return g
 
 
+def remove_ent_triples(g, excluded_ents):
+    remove_triples = []
+    for e in excluded_ents:
+        for (s,p,o) in g.triples((e, None, None)):
+            remove_triples.append((s,p,o))
+        for (s,p,o) in g.triples((None, None, e)):
+            remove_triples.append((s,p,o))
+    for s,p,o in remove_triples:
+        g.remove((s,p,o))
+
+
 class PreProcessor(object):
     def __init__(self, kg_path):
         self.kg_path = kg_path
@@ -23,13 +35,16 @@ class PreProcessor(object):
         self.g = ConjunctiveGraph()
         self.unique_msgs = self.ent_dict.copy()
 
-    def load_knowledge_graph(self, format='xml', exclude_rels=[], clean_schema=True, amberg_params=None):
+    def load_knowledge_graph(self, format='xml', exclude_rels=[], clean_schema=True, amberg_params=None,
+                             excluded_entities=None):
         self.g.load(self.kg_path, format = format)
         # remove triples with excluded relation
         remove_rel_triples(self.g, exclude_rels)
         # remove triples with relations between class-level constructs
         if clean_schema:
             remove_rel_triples(self.g, schema_relations)
+        if excluded_entities is not None:
+            remove_ent_triples(self.g, excluded_entities)
         if amberg_params:
             path_to_events = amberg_params[0]
             max_events = amberg_params[1]
@@ -62,7 +77,7 @@ class PreProcessor(object):
             if uni_r not in self.rel_dict:
                 self.rel_dict.setdefault(uni_r, len(self.rel_dict))
             
-    def load_unique_msgs_from_txt(self, path):
+    def load_unique_msgs_from_txt(self, path, max_events=None):
         """
         Assuming csv text files with two columns
         :param path:
@@ -81,6 +96,11 @@ class PreProcessor(object):
         # sort ascending w.r.t. embedding id, in case of later stripping
         # self.ent_dict = sorted(self.ent_dict.items(), key=operator.itemgetter(1), reverse=False)
         self.unique_msgs = self.ent_dict.copy()
+        if max_events is not None:
+            all_msgs = sorted(self.unique_msgs.items(), key=operator.itemgetter(1), reverse=False)
+            self.unique_msgs = dict(all_msgs[:max_events])
+            excluded_events = dict(all_msgs[max_events:]).keys()
+            return excluded_events
 
     def prepare_sequences(self, path_to_input, use_dict=True):
         """
@@ -91,6 +111,7 @@ class PreProcessor(object):
         :param classification_event:
         :return:
         """
+        print("Preparing sequential data...")
         with open(path_to_input, "rb") as f:
             result = []
             for line in f:
@@ -98,8 +119,7 @@ class PreProcessor(object):
                 if use_dict:
                     result.append([int(e.strip()) for e in entities if int(e.strip()) in self.unique_msgs.values()])
                 else:
-                    result.append([e for e in entities])
-        print("Preparing sequential data...")
+                    result.append(e for e in entities)
         print("Processed {0} sequences".format(len(result)))
         return result
 

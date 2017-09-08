@@ -33,30 +33,41 @@ class TransE(object):
         self.init_lr = init_lr
         self.event_layer = event_layer
 
-    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs):
+    def rank_left_idx(self, test_inpr, test_inpo, r_embs, ent_embs, a=None, b=None, v_embs=None):
         lhs = ent_embs
         unique_inpo = np.unique(test_inpo)
-        unique_rell = r_embs[unique_inpo]
+        # unique_rell = r_embs[unique_inpo]
         rhs = ent_embs[test_inpr]
-        unique_lhs = lhs[:, np.newaxis] + unique_rell
+        # unique_lhs = lhs[:, np.newaxis] + unique_rell
         results = np.zeros((len(test_inpr), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             rhs_inds = np.argwhere(test_inpo == i)[:,0]
-            tmp_lhs = unique_lhs[:, r, :]
-            results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
+            if a is not None:
+                tmp_lhs = np.multiply(a[r],lhs) + np.multiply(b[r], v_embs) + r_embs[r]
+                results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - np.multiply(a[r], rhs[rhs_inds])).sum(
+                    axis=2).transpose()
+            else:
+                tmp_lhs = lhs + r_embs[r]
+                results[rhs_inds] = -np.square(tmp_lhs[:, np.newaxis] - rhs[rhs_inds]).sum(axis=2).transpose()
         return results
 
-    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs):
+    def rank_right_idx(self, test_inpl, test_inpo, r_embs, ent_embs, a=None, b=None, v_embs=None):
         rhs = ent_embs
         unique_inpo = np.unique(test_inpo)
-        unique_rell = r_embs[unique_inpo]
-        unique_rhs = unique_rell - rhs[:, np.newaxis]
+        # unique_rell = r_embs[unique_inpo]
+        # unique_rhs = unique_rell - rhs[:, np.newaxis]
         lhs = ent_embs[test_inpl]  # [num_test, d]
         results = np.zeros((len(test_inpl), ent_embs.shape[0]))
         for r, i in enumerate(unique_inpo):
             lhs_inds = np.argwhere(test_inpo == i)[:, 0]
-            tmp_rhs = unique_rhs[:, r, :]
-            results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
+            # tmp_rhs = unique_rhs[:, r, :]
+            if a is not None:
+                tmp_rhs = r_embs[r] - (np.multiply(a[r], rhs) + np.multiply(b[r], v_embs))
+                results[lhs_inds] = -np.square(np.multiply(a[r], lhs[lhs_inds]) + np.multiply(b[r] , v_embs[lhs_inds])
+                                           + tmp_rhs[:,np.newaxis]).sum(axis=2).transpose()
+            else:
+                tmp_rhs = r_embs[r] - rhs
+                results[lhs_inds] = -np.square(lhs[lhs_inds] + tmp_rhs[:, np.newaxis]).sum(axis=2).transpose()
         return results
 
     def create_graph(self):
@@ -179,7 +190,10 @@ class TransE(object):
         r_embs, embs = session.run([self.R, self.E], feed_dict={})
         if self.event_layer is not None and not self.event_layer.shared:
             a, b, v_embs = session.run([self.a, self.b, self.event_layer.V], feed_dict={})
-            embs = np.multiply(embs, a) + np.multiply(v_embs, b)
-        scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs)
-        scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs)
+            #embs = np.multiply(embs, a) + np.multiply(v_embs, b)
+            scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs, a, b, v_embs)
+            scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs, a, b, v_embs)
+        else:
+            scores_l = self.rank_left_idx(inpr, inpo, r_embs, embs)
+            scores_r = self.rank_right_idx(inpl, inpo, r_embs, embs)
         return scores_l, scores_r
