@@ -4,7 +4,9 @@
 # How to run:
 #
 # To train the embeddings for a given knowledge graph and event dataset
-# python ekl_experiment.py --dir 'path/to/dir' --...
+# put the path to the kg *path_to_kg* (optional sequence dataset *path_to_sequence*)
+# fiddle with the parameter settings, then run: 
+# python ekl_experiment.py
 
 # Up to now there is no flag to switch to GPU support, but this should be
 # easy to change when needed
