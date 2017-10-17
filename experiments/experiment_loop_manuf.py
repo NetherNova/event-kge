@@ -4,7 +4,9 @@
 # How to run:
 #
 # To train the embeddings for a given knowledge graph and event dataset
-# python ekl_experiment.py --dir 'path/to/dir' --...
+# put the path to the kg *path_to_kg* (optional sequence dataset *path_to_sequence*)
+# fiddle with the parameter settings, then run: 
+# python ekl_experiment.py
 
 # Up to now there is no flag to switch to GPU support, but this should be
 # easy to change when needed
@@ -12,10 +14,10 @@
 # Requirements:
 #
 # - Python 2.7
-# - Tensorflow 0.12.1
+# - Tensorflow 1.10
 # - numpy 1.12
 # - rdflib 4.1.2
-# - pandas
+# - pandas 0.19
 
 import csv
 import numpy as np
@@ -31,7 +33,6 @@ from models.pre_training import EmbeddingPreTrainer, TEKEPreparation
 
 from event_models.LinearEventModel import Skipgram, ConcatenationFull, ConcatenationCause, Average
 from event_models.Autoencoder import ConvolutionalAutoEncoder, LSTMAutoencoder
-
 
 from prep.batch_generators import SkipgramBatchGenerator, TripleBatchGenerator, PredictiveEventBatchGenerator, FuturePredictiveBatchGenerator, AutoEncoderBatchGenerator
 from prep.etl import prepare_sequences, message_index
