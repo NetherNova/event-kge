@@ -11,8 +11,8 @@ Data preparation works directly with ontologies (RDF or OWL)
 For triple processing, rdflib is used.
 
 ## How to run:
-Put the *path_to_kg* and optional *path_to_sequence* in experiments/ekl_experiment.py
-python experiments/ekl_experiment.py
+Put the *path_to_kg* and optional *path_to_sequence* in ekl_experiment.py
+python ekl_experiment.py
 
 ## Requirements:
 - rdflib (4.1.2)
