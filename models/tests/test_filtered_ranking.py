@@ -3,7 +3,7 @@ from models.model import ranking_error_triples
 import numpy as np
 
 
-class MyTestCase(unittest.TestCase):
+class FilteredRankingTestCase(unittest.TestCase):
     def setUp(self):
         self.left = range(3)
         self.rel = np.zeros((3), dtype=np.int32)
@@ -16,9 +16,11 @@ class MyTestCase(unittest.TestCase):
         self.filtered = [(2, 0, 0)]
 
     def test_something(self):
-        result = ranking_error_triples(self.filtered, self.scores_l, self.scores_r,
+        errl, errr = ranking_error_triples(self.filtered, self.scores_l, self.scores_r,
                                            self.left, self.rel, self.right)
-        print(result)
+        self.assertEqual(errl[1], 1)
+        self.assertEqual(errl[0], 1)
+        self.assertEqual(errl[2], 3)
 
     def tearDown(self):
         pass
