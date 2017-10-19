@@ -100,6 +100,7 @@ class TransE(object):
         if self.event_layer is not None:
             self.event_layer.create_graph()
             if not self.event_layer.shared:
+                # Option 1
                 # self.a = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,
                 #                                    maxval=w_bound), name="a")
                 # self.b = tf.Variable(tf.random_uniform([self.embedding_size], minval=-w_bound,

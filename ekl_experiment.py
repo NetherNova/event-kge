@@ -139,6 +139,9 @@ if __name__ == '__main__':
         param_dict['num_sampled'] = [7]     # [5, 9]
         shared = True
 
+        pre_train = False
+        pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
+
         # param_dict['batch_size_sg'] = [2]     # [128, 512]
         pre_train_steps = 10000
         if traffic_data:
