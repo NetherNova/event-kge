@@ -15,7 +15,7 @@ class FilteredRankingTestCase(unittest.TestCase):
         self.scores_r = np.random.random((3, 3))
         self.filtered = [(2, 0, 0)]
 
-    def test_something(self):
+    def test_ranking_error(self):
         errl, errr = ranking_error_triples(self.filtered, self.scores_l, self.scores_r,
                                            self.left, self.rel, self.right)
         self.assertEqual(errl[1], 1)
