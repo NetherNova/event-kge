@@ -210,6 +210,6 @@ def evaluate_on_test(model_type, parameter_list, test_tg, saved_model_path, test
 
         relation_results[reverse_relation_dictionary[i]] = {'MeanRank': mean_rank, 'MRR' : mrr, 'Hits@10' : hits_10,
                                                             'Hits@3': hits_3, 'Hits@1': hits_1}
-    for k, v in relation_results.iteritems():
+    for k, v in relation_results.items():
         print(k, v)
     return results, relation_results

@@ -46,25 +46,25 @@ for i, clone in enumerate(clones):
     for dev in original_g.subjects(RDF.type, device):
         # their associated triples
         for s,p,o in original_g.triples((dev, None, None)):
-            new_s = clone + '-' + unicode(s).split('#')[1]
+            new_s = clone + '-' + str(s).split('#')[1]
             new_s = amberg_ns[new_s]
             if p in (RDF.type, amberg_ns['hasSkill']):
                 if remove_original:
                     original_g.remove((s, p, o))
                 clone_g.add((new_s, p, o))
             elif p in (hasPart, amberg_ns['connectsTo']):
-                new_o = clone + '-' + unicode(o).split('#')[1]
+                new_o = clone + '-' + str(o).split('#')[1]
                 new_o = amberg_ns[new_o]
                 if remove_original:
                     original_g.remove((s, p, o))
                 clone_g.add((new_s, p, new_o))
 
         for s,p,o in original_g.triples((None, None, dev)):
-            new_o = clone + '-' + unicode(o).split('#')[1]
+            new_o = clone + '-' + str(o).split('#')[1]
             new_o = amberg_ns[new_o]
 
             if p in (hasPart, amberg_ns['connectsTo'], base_ns['observedBy'], base_ns['involvedEquipment']):
-                new_s = clone + '-' + unicode(s).split('#')[1]
+                new_s = clone + '-' + str(s).split('#')[1]
                 new_s = amberg_ns[new_s]
                 if remove_original:
                     original_g.remove((s, p, o))
@@ -74,17 +74,17 @@ for i, clone in enumerate(clones):
     for proc in original_g.subjects(RDF.type, process):
         # involvedEquipment, follows, typing
         for s,p,o in original_g.triples((None, None, proc)):
-            new_s = clone + '-' + unicode(s).split('#')[1]
+            new_s = clone + '-' + str(s).split('#')[1]
             new_s = amberg_ns[new_s]
             if p in (involvedEquipment, follows):
-                new_o = clone + '-' + unicode(o).split('#')[1]
+                new_o = clone + '-' + str(o).split('#')[1]
                 new_o = amberg_ns[new_o]
                 clone_g.add((new_s, p, new_o))
         for s,p,o in original_g.triples((proc, None, None)):
-            new_s = clone + '-' + unicode(s).split('#')[1]
+            new_s = clone + '-' + str(s).split('#')[1]
             new_s = amberg_ns[new_s]
             if p == follows:
-                new_o = clone + '-' + unicode(o).split('#')[1]
+                new_o = clone + '-' + str(o).split('#')[1]
                 new_o = amberg_ns[new_o]
                 clone_g.add((new_s, p, new_o))
             elif p == RDF.type:
@@ -114,4 +114,4 @@ for s,p,o in original_g.triples((None, None, None)):
     clone_g.add((s,p,o))
 
 clone_g.serialize('../clones/Ontology/amberg_clone.rdf')
-print "Serialized %d triples for clone" %(len(clone_g))
+print("Serialized %d triples for clone" %(len(clone_g)))

@@ -65,7 +65,7 @@ class PreProcessor(object):
         fixed_ids = set([id for id in self.ent_dict.values()])
         # sorting ensures equal random splits on equal seeds
         for h in sorted(set(self.g.subjects(None, None)).union(set(self.g.objects(None, None)))):
-            uni_h = unicode(h)
+            uni_h = str(h)
             if uni_h not in self.ent_dict:
                 while ent_counter in fixed_ids:
                     ent_counter += 1
@@ -73,7 +73,7 @@ class PreProcessor(object):
                 ent_counter += 1
         # add new relations to dict
         for r in sorted(set(self.g.predicates(None, None))):
-            uni_r = unicode(r)
+            uni_r = str(r)
             if uni_r not in self.rel_dict:
                 self.rel_dict.setdefault(uni_r, len(self.rel_dict))
             
@@ -83,7 +83,7 @@ class PreProcessor(object):
         :param path:
         :return:
         """
-        with open(path, "rb") as f:
+        with open(path, "r") as f:
             for line in f:
                 split = line.split(',')
                 try:
@@ -112,7 +112,7 @@ class PreProcessor(object):
         :return:
         """
         print("Preparing sequential data...")
-        with open(path_to_input, "rb") as f:
+        with open(path_to_input, "r") as f:
             result = []
             for line in f:
                 entities = line.split(',')

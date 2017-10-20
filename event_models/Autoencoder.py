@@ -185,10 +185,10 @@ if __name__ == '__main__':
             l,_ = sess.run([loss, train], {p_input : random_sequences})
             sum_l += l
             if i % 1000 == 0:
-                print "iter %d:" % (i + 1), 1.0 * sum_l / 1000.0
+                print("iter %d:" % (i + 1), 1.0 * sum_l / 1000.0)
                 sum_l = 0
                 test = r + d
                 output_ = sess.run([ae.output], {p_input: test})
-                print "train result :"
-                print "input :", test[0, :, :].flatten()
-                print "output :", output_[0][0,:,:].flatten()
+                print("train result :")
+                print("input :", test[0, :, :].flatten())
+                print("output :", output_[0][0,:,:].flatten())

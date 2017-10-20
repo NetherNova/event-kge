@@ -440,7 +440,7 @@ def bernoulli_probs(ontology, relation_dictionary):
             heads = set(ontology.subjects(r, t))
             hpt += len(heads)
         hpt = hpt / (1.0 * len(tails))
-        probs[relation_dictionary[unicode(r)]] = tph / (tph + hpt)
+        probs[relation_dictionary[str(r)]] = tph / (tph + hpt)
     return probs
 
 

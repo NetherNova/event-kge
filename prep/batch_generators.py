@@ -169,9 +169,9 @@ class TripleBatchGenerator(object):
         self.ids_in_ent_dict = dict(list(zip(list(self.ent_array), range(0, self.ent_array.size))))
 
         for (s, p, o) in sorted(triples):
-            s = unicode(s)
-            p = unicode(p)
-            o = unicode(o)
+            s = str(s)
+            p = str(p)
+            o = str(o)
             if s not in self.entity_dictionary:
                 continue
             if o not in self.entity_dictionary:
