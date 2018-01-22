@@ -119,7 +119,7 @@ class PreProcessor(object):
                 if use_dict:
                     result.append([int(e.strip()) for e in entities if int(e.strip()) in self.unique_msgs.values()])
                 else:
-                    result.append(e for e in entities)
+                    result.append([int(e.strip()) for e in entities])
         print("Processed {0} sequences".format(len(result)))
         return result
 

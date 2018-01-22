@@ -26,7 +26,7 @@ import itertools
 import matplotlib.pyplot as plt
 import pickle
 import sys
-from rdflib import ConjunctiveGraph, RDF, URIRef
+from rdflib import ConjunctiveGraph, RDF, RDFS, URIRef
 
 import numpy as np
 import pandas as pd
@@ -55,10 +55,10 @@ rnd = np.random.RandomState(42)
 
 if __name__ == '__main__':
     ####### PATH PARAMETERS ########
-    base_path = "./clones/"
+    base_path =  "./clones/" # "./traffic_data/"
     path_to_store_model = base_path + "Embeddings/"
     path_to_events = base_path + "Sequences/"
-    path_to_kg = base_path + "Ontology/amberg_clone.rdf"
+    path_to_kg = base_path + "Ontology/clones_enhanced.rdf" # "Ontology/traffic_individuals.xml" #
     path_to_store_sequences = base_path + "Sequences/"
     path_to_store_embeddings = base_path + "Embeddings/"
     traffic_data = False
@@ -71,7 +71,7 @@ if __name__ == '__main__':
     bern_probs = None
 
     if traffic_data:
-        max_events = 4000
+        max_events = 10000
         exclude_rels = [RDFS.comment]
         preprocessor = PreProcessor(path_to_kg)
         excluded_events = preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt', max_events=max_events)
@@ -79,11 +79,13 @@ if __name__ == '__main__':
         amberg_params = None
     else:
         exclude_rels = ['http://www.siemens.com/ontology/demonstrator#tagAlias']
-        max_events = 1000
+        max_events = None
         max_seq = None
+        preprocessor.load_unique_msgs_from_txt(base_path + 'unique_msgs.txt')
         # sequence window size in minutes
         window_size = 0.5
-        amberg_params = (path_to_events, max_events)
+        amberg_params = None
+        # amberg_params = (path_to_events, max_events)
 
     preprocessor.load_knowledge_graph(format='xml', exclude_rels=exclude_rels, amberg_params=amberg_params)
     vocab_size = preprocessor.get_vocab_size()
@@ -93,30 +95,31 @@ if __name__ == '__main__':
     g = preprocessor.get_kg()
 
     print("Read {0} number of triples".format(len(g)))
-    get_kg_statistics(g)
+    # get_kg_statistics(g)
 
-    #zero_shot_prop = 0.25
-    #zero_shot_entity =  URIRef('http://www.siemens.com/ontology/demonstrator#Event') #URIRef('http://purl.oclc.org/NET/ssnx/ssn#Device')
-    #zero_shot_relation = URIRef(RDF.type) # URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#follows') # URIRef('http://www.siemens.com/ontology/demonstrator#involvedEquipment') URIRef('http://www.loa-cnr.it/ontologies/DUL.owl#hasPart')
-    #zero_shot_triples, kg_prop = get_zero_shot_scenario(g, zero_shot_entity, zero_shot_relation, zero_shot_prop)
     zero_shot_triples = []
 
     ######### Model selection ##########
-    model_type = TranslationModels.Trans_E
+    model_type = TranslationModels.Trans_E  # TEKE, RESCAL
     bernoulli = True
-    event_layer = ConvolutionalAutoEncoder
+    event_layer = Skipgram
     store_embeddings = False
+
+    # pre-train event embeddings
+    pre_train = False
+    pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
+    pre_train_steps = 10000
 
     ######### Hyper-Parameters #########
     param_dict = {}
-    param_dict['embedding_size'] = [10]
+    param_dict['embedding_size'] = [40]
     param_dict['seq_data_size'] = [1.0]
     param_dict['batch_size'] = [32]     # [32, 64, 128]
-    param_dict['learning_rate'] = [0.3]     # [0.5, 0.8, 1.0]
+    param_dict['learning_rate'] = [0.2]     # [0.5, 0.8, 1.0]
     param_dict['lambd'] = [0.001]     # regularizer (RESCAL)
-    param_dict['alpha'] = [1.0]     # event embedding weighting
+    param_dict['alpha'] = [0.5]     # event embedding weighting
     eval_step_size = 1000
-    num_epochs = 20
+    num_epochs = 100
     num_negative_triples = 2
     test_proportion = 0.2
     validation_proportion = 0.1 # 0.1
@@ -135,21 +138,17 @@ if __name__ == '__main__':
 
     # SKIP Parameters
     if event_layer is not None:
-        param_dict['num_skips'] = [2]   # [2, 4]
-        param_dict['num_sampled'] = [7]     # [5, 9]
+        param_dict['num_skips'] = [2]   # range(5, 9)
+        param_dict['num_sampled'] = [7]     # [5, 8]
         shared = True
 
-        pre_train = False
-        pre_train_embeddings = base_path + "Embeddings/supplied_embeddings"
-
-        # param_dict['batch_size_sg'] = [2]     # [128, 512]
-        pre_train_steps = 10000
         if traffic_data:
             sequences = preprocessor.prepare_sequences(path_to_sequence, use_dict=True)
         else:
-            merged = preprocessor.get_merged()
-            sequences = prepare_sequences(merged, message_index,
-                                              unique_msgs, window_size, max_seq, g_train)
+            # merged = preprocessor.get_merged()
+            # sequences = prepare_sequences(merged, message_index,
+            #                                  unique_msgs, window_size, max_seq, g_train)
+            sequences = preprocessor.prepare_sequences(path_to_sequence, use_dict=False)
         num_sequences = len(sequences)
 
     num_entities = len(ent_dict)
@@ -187,9 +186,9 @@ if __name__ == '__main__':
 
         if event_layer is not None:
             if traffic_data:
-                batch_size_sg = 32 # (len(sequences[0]) * num_epochs) / num_steps
+                batch_size_sg = params.batch_size
             else:
-                batch_size_sg = 11 # (sum([len(sequences[i]) for i in range(num_sequences)]) * num_epochs) / num_steps
+                batch_size_sg = params.batch_size
             print("Batch size sg:", batch_size_sg)
             num_skips = params.num_skips
             num_sampled = params.num_sampled
