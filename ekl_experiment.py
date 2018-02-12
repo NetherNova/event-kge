@@ -176,7 +176,7 @@ if __name__ == '__main__':
     param_combs = cross_parameter_eval(param_dict)
     for comb_num, tmp_param_dict in enumerate(param_combs):
         params = Parameters(**tmp_param_dict)
-        num_steps = (train_size / params.batch_size) * num_epochs
+        num_steps = int((train_size / params.batch_size) * num_epochs)
 
         print("Progress: {0} prct".format(int((100.0 * comb_num) / len(param_combs))))
         print("Embedding size: ", params.embedding_size)
@@ -343,7 +343,7 @@ if __name__ == '__main__':
 
     # Reset graph, load best model and apply to test data set
     with open(base_path + 'evaluation_parameters_' + model_name +
-                      '_best.csv', "wb") as eval_file:
+                      '_best.csv', "w") as eval_file:
         writer = csv.writer(eval_file)
         results, relation_results = evaluate_on_test(model_type, best_param_list, test_tg, save_path_global, test_size,
                                                              reverse_relation_dictionary)
