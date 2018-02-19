@@ -1,7 +1,7 @@
 from rdflib import ConjunctiveGraph, URIRef, RDF, RDFS, OWL, Literal
 from prep.etl import get_merged_dataframe, get_unique_entities, update_amberg_ontology
 import operator
-
+from utils import url_parse
 
 schema_relations = [RDFS.subClassOf, RDFS.subPropertyOf, OWL.inverseOf, OWL.disjointWith, OWL.imports]
 
@@ -19,12 +19,12 @@ def remove_rel_triples(g, relation_list):
 def remove_ent_triples(g, excluded_ents):
     remove_triples = []
     for e in excluded_ents:
-        for (s,p,o) in g.triples((e, None, None)):
-            remove_triples.append((s,p,o))
-        for (s,p,o) in g.triples((None, None, e)):
-            remove_triples.append((s,p,o))
-    for s,p,o in remove_triples:
-        g.remove((s,p,o))
+        for (s, p, o) in g.triples((e, None, None)):
+            remove_triples.append((s, p, o))
+        for (s, p, o) in g.triples((None, None, e)):
+            remove_triples.append((s, p, o))
+    for s, p, o in remove_triples:
+        g.remove((s, p, o))
 
 
 class PreProcessor(object):
@@ -37,7 +37,7 @@ class PreProcessor(object):
 
     def load_knowledge_graph(self, format='xml', exclude_rels=[], clean_schema=True, amberg_params=None,
                              excluded_entities=None):
-        self.g.load(self.kg_path, format = format)
+        self.g.load(self.kg_path, format=format)
         # remove triples with excluded relation
         remove_rel_triples(self.g, exclude_rels)
         # remove triples with relations between class-level constructs
@@ -50,7 +50,8 @@ class PreProcessor(object):
             max_events = amberg_params[1]
             self.merged = get_merged_dataframe(path_to_events, max_events)
             self.unique_msgs, unique_vars, unique_mods, unique_fes = get_unique_entities(self.merged)
-            update_amberg_ontology(self.g, self.ent_dict, self.unique_msgs, unique_mods, unique_fes, unique_vars, self.merged)
+            update_amberg_ontology(self.g, self.ent_dict, self.unique_msgs, unique_mods, unique_fes, unique_vars,
+                                   self.merged)
 
         self.update_entity_relation_dictionaries()
 
@@ -65,18 +66,26 @@ class PreProcessor(object):
         fixed_ids = set([id for id in self.ent_dict.values()])
         # sorting ensures equal random splits on equal seeds
         for h in sorted(set(self.g.subjects(None, None)).union(set(self.g.objects(None, None)))):
-            uni_h = str(h)
-            if uni_h not in self.ent_dict:
+            # parse to handle special characters in the url
+            uni_h = url_parse(str(h))
+            uni_h_frag = uni_h.split('#')[1]
+            # check to avoid duplicate urls in the dictionary
+            if uni_h_frag not in self.ent_dict:
                 while ent_counter in fixed_ids:
                     ent_counter += 1
                 self.ent_dict.setdefault(uni_h, ent_counter)
                 ent_counter += 1
+            else:
+                # replace url fragment in the dictionary with complete url
+                self.ent_dict[uni_h] = self.ent_dict[uni_h_frag]
+                del self.ent_dict[uni_h_frag]
+
         # add new relations to dict
         for r in sorted(set(self.g.predicates(None, None))):
             uni_r = str(r)
             if uni_r not in self.rel_dict:
                 self.rel_dict.setdefault(uni_r, len(self.rel_dict))
-            
+
     def load_unique_msgs_from_txt(self, path, max_events=None):
         """
         Assuming csv text files with two columns
