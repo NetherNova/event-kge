@@ -1,0 +1,916 @@
+<?xml version="1.0"?>
+
+
+<!DOCTYPE rdf:RDF [
+    <!ENTITY owl "http://www.w3.org/2002/07/owl#" >
+    <!ENTITY xsd "http://www.w3.org/2001/XMLSchema#" >
+    <!ENTITY rdfs "http://www.w3.org/2000/01/rdf-schema#" >
+    <!ENTITY rdf "http://www.w3.org/1999/02/22-rdf-syntax-ns#" >
+]>
+
+
+<rdf:RDF xmlns="http://www.siemens.com/citypulse#"
+     xml:base="http://www.siemens.com/citypulse"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <owl:Ontology rdf:about="http://www.siemens.com/citypulse"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Object Properties
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.siemens.com/citypulse#closeTo -->
+
+    <owl:ObjectProperty rdf:about="http://www.siemens.com/citypulse#closeTo">
+        <rdfs:comment>PoI is close to another if they are both found at an address</rdfs:comment>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#hasEnd -->
+
+    <owl:ObjectProperty rdf:about="http://www.siemens.com/citypulse#hasEnd"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#hasStart -->
+
+    <owl:ObjectProperty rdf:about="http://www.siemens.com/citypulse#hasStart"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#locatedAt -->
+
+    <owl:ObjectProperty rdf:about="http://www.siemens.com/citypulse#locatedAt">
+        <rdfs:comment>poi located at address</rdfs:comment>
+    </owl:ObjectProperty>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#occursAt -->
+
+    <owl:ObjectProperty rdf:about="http://www.siemens.com/citypulse#occursAt"/>
+    
+
+
+    <!-- 
+    ///////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Classes
+    //
+    ///////////////////////////////////////////////////////////////////////////////////////
+     -->
+
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Accounting -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Accounting">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Finance"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Address -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Address"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Airport -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Airport">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Transportation"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Amusement_park -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Amusement_park">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Aquarium -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Aquarium">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Art_gallery -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Art_gallery">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Atm -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Atm">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Finance"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Bakery -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Bakery">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Food"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Bank -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Bank">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Finance"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Bar -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Bar">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Beauty_salon -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Beauty_salon">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Bicycle_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Bicycle_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Book_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Book_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Bowling_alley -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Bowling_alley">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Bus_station -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Bus_station">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Transportation"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Cafe -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Cafe">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Food"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Campground -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Campground">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Car_dealer -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Car_dealer">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Car_rental -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Car_rental">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Car_repair -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Car_repair">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Car_wash -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Car_wash">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Casino -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Casino">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Cemetery -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Cemetery">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Religious"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Church -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Church">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Religious"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#City -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#City"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#City_hall -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#City_hall">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Political"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Clothing_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Clothing_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Convenience_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Convenience_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Courthouse -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Courthouse">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#DecreasedEvent -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#DecreasedEvent">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#TrafficEvent"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Dentist -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Dentist">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Health"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Department_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Department_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Doctor -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Doctor">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Health"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Electrician -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Electrician">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Electronics_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Electronics_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Embassy -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Embassy">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Political"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Event -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Event"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Finance -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Finance">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Fire_station -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Fire_station">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Florist -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Florist">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Food -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Food">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Funeral_home -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Funeral_home">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Furniture_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Furniture_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Gas_station -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Gas_station">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Grocery_or_supermarket -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Grocery_or_supermarket">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Gym -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Gym">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Hair_care -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Hair_care">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Hardware_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Hardware_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Health -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Health">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Hindu_temple -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Hindu_temple">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Religious"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Home_goods_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Home_goods_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Hospital -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Hospital">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Health"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#IncreasedEvent -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#IncreasedEvent">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#TrafficEvent"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Insurance_agency -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Insurance_agency">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Jewelry_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Jewelry_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Laundry -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Laundry">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Lawyer -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Lawyer">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Library -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Library">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Liquor_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Liquor_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Local_government_office -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Local_government_office">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Political"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Locksmith -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Locksmith">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Lodging -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Lodging">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Meal_delivery -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Meal_delivery">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Meal_takeaway -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Meal_takeaway">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Mosque -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Mosque">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Religious"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Movie_rental -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Movie_rental">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Movie_theater -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Movie_theater">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Moving_company -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Moving_company">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Museum -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Museum">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Night_club -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Night_club">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Painter -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Painter">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Park -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Park">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Parking -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Parking">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Path -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Path"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Pet_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Pet_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Pharmacy -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Pharmacy">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Physiotherapist -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Physiotherapist">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Plumber -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Plumber">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Point_of_interest -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Point_of_interest"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Police -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Police">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Political -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Political">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Post_office -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Post_office">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Real_estate_agency -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Real_estate_agency">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Religious -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Religious">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Restaurant -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Restaurant">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Roofing_contractor -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Roofing_contractor">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Route -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Route"/>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Rv_park -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Rv_park">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#School -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#School">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Shoe_store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Shoe_store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Store"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Shopping_mall -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Shopping_mall">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Spa -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Spa">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Stadium -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Stadium">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Storage -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Storage">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Store -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Store">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Subway_station -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Subway_station">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Transportation"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Synagogue -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Synagogue">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Religious"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Taxi_stand -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Taxi_stand">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Transportation"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#TrafficEvent -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#TrafficEvent">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Event"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Train_station -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Train_station">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Transportation"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Transit_station -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Transit_station">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Transportation"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Transportation -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Transportation">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Travel_agency -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Travel_agency">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#University -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#University">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Veterinary_care -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Veterinary_care">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+    
+
+
+    <!-- http://www.siemens.com/citypulse#Zoo -->
+
+    <owl:Class rdf:about="http://www.siemens.com/citypulse#Zoo">
+        <rdfs:subClassOf rdf:resource="http://www.siemens.com/citypulse#Point_of_interest"/>
+    </owl:Class>
+</rdf:RDF>
+
+
+
+<!-- Generated by the OWL API (version 3.4.2) http://owlapi.sourceforge.net -->
+

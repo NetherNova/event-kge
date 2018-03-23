@@ -1,0 +1,95 @@
+<html>
+<head>
+  <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+  <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyATQYpRfM5vinOrdkQl1liqUivfjYDMFFU&libraries=places"></script>
+</head>
+
+<body>
+  <div id='map'></div>
+  <script type="text/javascript">
+
+  var functions = {};
+
+  function execute() {
+    d3.csv('trafficMetaData.csv', function(err, data) {
+      data.forEach(function(row, z) {
+        var tmpVar = "" + z
+        functions[tmpVar] = initialize(z, row, 0);
+        tmpVar = "b" + z
+        functions[tmpVar] = initialize(z, row, 1);
+      });
+      function_list = []
+      for (var key in functions) {
+        function_list.push(functions[key])
+      }
+      loop.apply(null,
+        function_list
+      )
+    });
+  }
+
+  function loop() {
+    var args = arguments;
+    if (args.length <= 0)
+        return;
+    (function chain(i) {
+        if (i >= args.length || typeof args[i] !== 'function')
+            return;
+        window.setTimeout(function() {
+            args[i]();
+            chain(i + 1);
+        }, 5000);
+    })(0);
+}
+
+  function initialize(x, row, point) {
+    var map;
+    var service;
+    var infowindow;
+    var lat;
+    var long;
+    var point_id;
+
+    if(point == 0) {
+      lat = row["POINT_1_LAT"]
+      long = row["POINT_1_LNG"]
+      point_id = "POINT_1_"
+    } else {
+      lat = row["POINT_2_LAT"]
+      long = row["POINT_2_LNG"]
+      point_id = "POINT_2_"
+    }
+
+    var location = new google.maps.LatLng(lat, long);
+    map = new google.maps.Map(document.getElementById('map'), {
+        center: location,
+        zoom: 15
+    });
+
+    // radius in meters
+    var request = {
+      location: location,
+      radius: '50'
+    };
+
+    service = new google.maps.places.PlacesService(map);
+    return function() {
+      service.nearbySearch(request, function(results, status) {
+        if (status == google.maps.places.PlacesServiceStatus.OK) {
+          for (var j = 0; j < results.length; j++) {
+            var place = results[j];
+            console.log(point_id + row["REPORT_ID"])
+            console.log(place["types"]);
+          }
+        } else {
+          console.log(status)
+        }
+      });
+    }
+  }
+
+  execute();
+
+  </script>
+</body>
+</html>
